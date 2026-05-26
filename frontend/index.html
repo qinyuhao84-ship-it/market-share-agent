@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>报告自动化助手</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=ZCOOL+XiaoWei&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/frontend/styles.css" />
+</head>
+<body>
+  <div class="site">
+    <header class="topbar">
+      <div class="brand">
+        <h1>报告自动化助手</h1>
+      </div>
+      <div class="top-actions" id="topActionsBar">
+        <div class="top-actions-row">
+          <button id="createCompanyBtnTop" class="btn subtle top-btn top-create" type="button" onclick="onCreateCompanyClick()">新建企业</button>
+          <div class="draft-version">
+            <label for="draftCompanySelect">企业</label>
+            <select id="draftCompanySelect" onchange="onDraftCompanyChange()"></select>
+            <label for="draftVersionSelect">版本</label>
+            <select id="draftVersionSelect" onchange="onDraftVersionChange()"></select>
+          </div>
+          <button id="createVersionBtnTop" class="btn subtle top-btn top-create" type="button" onclick="onCreateVersionClick()">新建版本</button>
+          <button id="createFinalVersionBtnTop" class="btn subtle top-btn top-create" type="button" onclick="onCreateFinalVersionClick()" style="background:#fff7ea;color:#b05a19;border-color:#f5d5b0;">新建最终版本</button>
+          <button id="saveDraftBtnTop" class="btn primary top-btn top-save" type="button" onclick="onSaveDraftClick()">保存版本</button>
+        </div>
+        <div class="top-actions-row top-actions-danger">
+          <button id="deleteVersionBtnTop" class="btn subtle top-btn top-delete-one" type="button" onclick="onDeleteVersionClick()">删除当前版本</button>
+          <button id="deleteCompanyBtnTop" class="btn danger top-btn top-delete-all" type="button" onclick="onDeleteCompanyClick()">删除企业</button>
+          <div id="draftMeta" class="draft-tip">草稿未保存</div>
+        </div>
+      </div>
+    </header>
+
+    <div class="layout">
+      <main>
+        <section class="panel" id="step1">
+          <div class="panel-head">
+            <h3>基础资料</h3>
+          </div>
+          <div class="grid-2">
+            <input id="province" type="hidden" />
+            <div class="field"><label>企业名称</label><input id="company_name" /></div>
+            <div class="field"><label>主导产品名称</label><input id="product_name" /></div>
+            <div class="field"><label>产品代码</label><input id="product_code" /></div>
+          </div>
+
+          <div class="date-row" style="margin-top:10px;">
+            <div class="field"><label>报告日期（年）</label><select id="year"></select></div>
+            <div class="field"><label>月</label><select id="month"></select></div>
+            <div class="field"><label>日</label><select id="day"></select></div>
+          </div>
+
+          <div class="grid-2" style="margin-top:10px;">
+            <div class="field">
+              <label>市场范围</label>
+              <select id="target_scope">
+                <option value="CN">中国市场</option>
+                <option value="GLOBAL">全球市场</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid-2" style="margin-top:10px;">
+            <div class="field">
+              <label>企业介绍</label>
+              <textarea id="company_intro" placeholder="写企业背景、技术积累、客户与认证等关键信息"></textarea>
+            </div>
+            <div class="field">
+              <label>产品介绍</label>
+              <textarea id="product_intro" placeholder="写主导产品定位、技术方案、性能优势与应用场景"></textarea>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" id="step2">
+          <div class="panel-head">
+            <h3>经营数据</h3>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>年份</th>
+                <th>销售额 (万元)</th>
+                <th>市场规模 (万元)</th>
+                <th>占有率 (自动算)</th>
+                <th>排名（自动算）</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>2023</td>
+                <td><input id="sale_23" oninput="calcMyPct('23')" /></td>
+                <td><input id="total_mkt_23" oninput="onMarketInputChange('23')" /></td>
+                <td><input id="pct_23" readonly /></td>
+                <td><input id="rank_23" readonly /></td>
+              </tr>
+              <tr>
+                <td>2024</td>
+                <td><input id="sale_24" oninput="calcMyPct('24')" /></td>
+                <td><input id="total_mkt_24" oninput="onMarketInputChange('24')" /></td>
+                <td><input id="pct_24" readonly /></td>
+                <td><input id="rank_24" readonly /></td>
+              </tr>
+              <tr>
+                <td>2025</td>
+                <td><input id="sale_25" oninput="calcMyPct('25')" /></td>
+                <td><input id="total_mkt_25" oninput="onMarketInputChange('25')" /></td>
+                <td><input id="pct_25" readonly /></td>
+                <td><input id="rank_25" readonly /></td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="panel" id="step4">
+          <div class="panel-head">
+            <h3>竞争对手信息</h3>
+          </div>
+          <div class="buttons" style="margin-top:0;">
+            <button class="btn subtle" type="button" onclick="addCompetitorRow()">添加一行企业</button>
+          </div>
+          <table id="comp_table" style="margin-top:6px;">
+            <thead>
+              <tr>
+                <th>企业名称</th>
+                <th>2023销售额(万元)</th><th>2023占有率</th><th>2023排名</th>
+                <th>2024销售额(万元)</th><th>2024占有率</th><th>2024排名</th>
+                <th>2025销售额(万元)</th><th>2025占有率</th><th>2025排名</th>
+              </tr>
+            </thead>
+            <tbody id="competitorBody"></tbody>
+          </table>
+          <div class="section-note">表格包含我司和竞争对手，并按 2025 年市占率自动降序；三年排名自动计算。</div>
+        </section>
+
+        <section class="panel" id="step5">
+          <div class="panel-head">
+            <h3>数据来源</h3>
+          </div>
+
+          <div class="buttons" style="margin-top:0;">
+            <button class="btn subtle" type="button" onclick="addSourceLayer()">添加一层来源</button>
+          </div>
+          <div class="section-note">他证第二章会按层直接复用这里的正文和链接。</div>
+          <div id="sources_list"></div>
+          <input id="report_body" type="hidden" />
+        </section>
+
+        <section class="panel other-only" id="otherProofPanel" style="display:none;">
+          <div class="panel-head">
+            <h3>他证模板设置</h3>
+            <span class="badge must">他证必填</span>
+          </div>
+          <div class="mode-panel">
+            <h4>基础参数</h4>
+            <div class="grid-2">
+              <div class="field">
+                <label>证明范围</label>
+                <input id="proof_scope" placeholder="例如：全球 / 全国 / 省内" />
+              </div>
+              <div class="field">
+                <label>测算用细分市场名称</label>
+                <input id="market_name" placeholder="例如：中型电源锁连接器" />
+              </div>
+            </div>
+            <div class="section-note" id="chapter1State">第一章：尚未生成</div>
+          </div>
+
+          <div class="mode-panel" style="margin-top:12px;">
+            <div class="panel-head" style="margin-bottom:0;">
+              <h4>第二章市场层级</h4>
+              <button class="btn subtle" type="button" onclick="addOtherLayer()">新增一层</button>
+            </div>
+            <div id="otherLayerList"></div>
+          </div>
+
+          <div class="mode-panel" style="margin-top:12px;">
+            <div class="panel-head" style="margin-bottom:0;">
+              <h4>第三章企业基本信息</h4>
+              <span class="section-note">这里改回手动填写。请把每家企业的注册资本、成立日期、法人代表、企业地址、主营业务填完整后再生成。</span>
+            </div>
+            <div id="companyConfirmPanel" class="section-note">请先填写企业名称和竞争对手，下面会自动展开手动填写表单。</div>
+          </div>
+        </section>
+
+        <section class="dock">
+          <div id="status" class="dock-status">状态：等待操作</div>
+          <div class="buttons">
+            <div class="template-mode">
+              <label for="template_type">模板类型</label>
+              <select id="template_type">
+                <option value="self">自证</option>
+                <option value="other">他证</option>
+              </select>
+            </div>
+            <button id="stopChapter1Btn" class="btn subtle" type="button" style="display:none;" onclick="abortOtherChapter1Generation()">终止第一章生成</button>
+            <button id="regenChapter1Btn" class="btn subtle" type="button" style="display:none;" onclick="regenerateOtherChapter1()">重新生成第一章</button>
+            <button class="btn accent" type="button" onclick="generate()">生成最终 Word</button>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- Final-version upload modal -->
+  <div class="modal-overlay" id="finalVersionModal">
+    <div class="modal-box">
+      <h3>新建最终版本</h3>
+      <p class="modal-sub">上传已确认的自证 .docx 文件，系统会自动提取内容并填写到表单中。</p>
+      <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+        <div class="upload-icon">📄</div>
+        <div>点击此处选择文件，或将 .docx 文件拖拽到此处</div>
+        <div class="upload-hint">仅支持 .docx 格式</div>
+        <div class="upload-file-name" id="uploadFileName"></div>
+      </div>
+      <input type="file" id="fileInput" accept=".docx" style="display:none" onchange="onFileSelected(this.files)" />
+      <div class="upload-progress" id="uploadProgress">⏳ 正在解析文件...</div>
+      <div class="upload-error" id="uploadError"></div>
+      <div class="modal-actions">
+        <button class="btn subtle" type="button" id="modalCancelBtn" onclick="closeFinalVersionModal()">取消</button>
+        <button class="btn primary" type="button" id="modalImportBtn" disabled onclick="onImportFinalDocx()">导入</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/frontend/draft_library.js"></script>
+  <script src="/frontend/modules/other_chapter1_config.js"></script>
+  <script src="/frontend/app.js"></script>
+</body>
+</html>
