@@ -162,12 +162,12 @@
         buttons.createFinalVersion.title = hasCompany ? "上传最终确认的自证 .docx 并自动填充表单" : "请先选择企业";
       }
       if (buttons.importJson) {
-        buttons.importJson.disabled = !hasCompany || !hasVersion || !isSelfTemplate || busyKeys.has("importJson");
+        buttons.importJson.disabled = !isSelfTemplate || busyKeys.has("importJson");
         buttons.importJson.title = !isSelfTemplate
           ? "请先切换到自证模板"
-          : hasVersion
+          : hasCompany && hasVersion
             ? "导入固定 JSON 并填充当前版本"
-            : "请先选择企业和版本";
+            : "先选企业和版本，再导入 JSON";
       }
       if (buttons.saveVersion) {
         buttons.saveVersion.disabled = !hasCompany || !hasVersion || busyKeys.has("saveVersion");

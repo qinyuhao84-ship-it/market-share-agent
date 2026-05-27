@@ -49,6 +49,8 @@ test('按钮交互增强：状态机、防连点、快捷键', () => {
   assert.match(source, /function bindDraftHotkeys\(\) \{/);
   assert.match(source, /if \(\(event\.ctrlKey \|\| event\.metaKey\).*key === "s"\)/);
   assert.match(source, /buttons\.importJson/);
+  assert.match(source, /buttons\.importJson\.disabled = !isSelfTemplate \|\| busyKeys\.has\("importJson"\);/);
+  assert.match(source, /"先选企业和版本，再导入 JSON"/);
   assert.match(source, /请先切换到自证模板/);
 });
 
