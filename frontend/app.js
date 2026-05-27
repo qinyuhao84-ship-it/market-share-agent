@@ -134,6 +134,7 @@
         createCompany: document.getElementById("createCompanyBtnTop"),
         createVersion: document.getElementById("createVersionBtnTop"),
         createFinalVersion: document.getElementById("createFinalVersionBtnTop"),
+        importJson: document.getElementById("importJsonBtnTop"),
         saveVersion: document.getElementById("saveDraftBtnTop"),
         deleteVersion: document.getElementById("deleteVersionBtnTop"),
         deleteCompany: document.getElementById("deleteCompanyBtnTop"),
@@ -145,6 +146,7 @@
       const versionSelect = document.getElementById("draftVersionSelect");
       const hasCompany = !!String(companySelect?.value || "").trim();
       const hasVersion = !!parseDraftEntryValue(versionSelect?.value || "");
+      const isSelfTemplate = document.getElementById("template_type")?.value !== "other";
       const busyKeys = new Set();
       const buttons = getTopActionButtons();
       Object.entries(buttons).forEach(([key, button]) => {
@@ -158,6 +160,14 @@
       if (buttons.createFinalVersion) {
         buttons.createFinalVersion.disabled = !hasCompany || busyKeys.has("createFinalVersion");
         buttons.createFinalVersion.title = hasCompany ? "上传最终确认的自证 .docx 并自动填充表单" : "请先选择企业";
+      }
+      if (buttons.importJson) {
+        buttons.importJson.disabled = !hasCompany || !hasVersion || !isSelfTemplate || busyKeys.has("importJson");
+        buttons.importJson.title = !isSelfTemplate
+          ? "请先切换到自证模板"
+          : hasVersion
+            ? "导入固定 JSON 并填充当前版本"
+            : "请先选择企业和版本";
       }
       if (buttons.saveVersion) {
         buttons.saveVersion.disabled = !hasCompany || !hasVersion || busyKeys.has("saveVersion");
@@ -315,7 +325,8 @@
       }
     }
 
-    function fillFormFromExtractedData(data) {
+    function fillFormFromExtractedData(data, options = {}) {
+      const keepBlankCompetitorRow = options.keepBlankCompetitorRow !== false;
       // Direct field mappings
       const directFields = [
         "province", "company_name", "product_name", "product_code",
@@ -352,7 +363,7 @@
         data.competitors.forEach((c) => {
           if (c.name) addCompetitorRow(c, { syncRows: false });
         });
-      } else {
+      } else if (keepBlankCompetitorRow) {
         addCompetitorRow();
       }
       refreshCompetitorBoard({ syncRows: false });
@@ -362,6 +373,18 @@
       toggleTemplateMode();
 
       updateProgress();
+    }
+
+    function clearSourcesForImport() {
+      const sourceHolder = document.getElementById("sources_list");
+      sourceHolder.innerHTML = "";
+      sourceCount = 0;
+    }
+
+    function clearCompetitorsForImport() {
+      const compBody = document.getElementById("competitorBody");
+      compBody.innerHTML = "";
+      refreshCompetitorBoard({ sortRows: false, syncRows: false });
     }
 
     async function saveAsFinalVersion(extractedData) {
@@ -1426,6 +1449,7 @@
         applyCompanyChapter1Cache(target?.companyName || getCurrentCompanyName());
         renderCompanyConfirmPanel();
       }
+      updateTopActionState();
     }
 
     function abortOtherChapter1Generation() {
@@ -2164,6 +2188,21 @@
     }
 
     bootApp();
+
+    window.ReportAutomationFormApi = {
+      getSelectedVersionTarget,
+      fillFormFromExtractedData,
+      addSource,
+      addCompetitorRow,
+      refreshCompetitorBoard,
+      syncBusinessMarketScaleFromSources,
+      calcMyPct,
+      saveDraft,
+      setStatus,
+      resetOtherCompanyLookupState,
+      clearSourcesForImport,
+      clearCompetitorsForImport,
+    };
 
     window.addEventListener("beforeunload", () => {
       saveDraft(true);

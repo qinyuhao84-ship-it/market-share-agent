@@ -6,14 +6,27 @@ const path = require('node:path');
 const html = fs.readFileSync(path.join(__dirname, '../frontend/index.html'), 'utf8');
 const appJs = fs.readFileSync(path.join(__dirname, '../frontend/app.js'), 'utf8');
 const chapter1ConfigJs = fs.readFileSync(path.join(__dirname, '../frontend/modules/other_chapter1_config.js'), 'utf8');
+const jsonImportJs = fs.readFileSync(path.join(__dirname, '../frontend/modules/json_import/json_import.js'), 'utf8');
+const jsonImportReadme = fs.readFileSync(path.join(__dirname, '../frontend/modules/json_import/README.md'), 'utf8');
 const source = [html, appJs, chapter1ConfigJs].join('\n');
+const importSource = [jsonImportJs, jsonImportReadme].join('\n');
 
 test('顶部版本中心操作入口存在', () => {
   assert.match(source, /id="createCompanyBtnTop"[^>]*onclick="onCreateCompanyClick\(\)"/);
   assert.match(source, /id="createVersionBtnTop"[^>]*onclick="onCreateVersionClick\(\)"/);
   assert.match(source, /id="saveDraftBtnTop"[^>]*onclick="onSaveDraftClick\(\)"/);
+  assert.match(source, /id="importJsonBtnTop"[^>]*onclick="ReportJsonImport\.openImportModal\(\)"/);
   assert.match(source, /id="deleteVersionBtnTop"[^>]*onclick="onDeleteVersionClick\(\)"/);
   assert.match(source, /id="deleteCompanyBtnTop"[^>]*onclick="onDeleteCompanyClick\(\)"/);
+});
+
+test('JSON 导入入口和资源已接入页面', () => {
+  assert.match(source, /href="\/frontend\/modules\/json_import\/json_import\.css"/);
+  assert.match(source, /id="jsonImportModal"/);
+  assert.match(source, /id="jsonImportTextarea"/);
+  assert.match(source, /id="jsonImportPreview"/);
+  assert.match(source, /id="jsonImportError"/);
+  assert.match(source, /src="\/frontend\/modules\/json_import\/json_import\.js"/);
 });
 
 test('旧入口已移除：恢复、清空、手选目标版本号', () => {
@@ -35,6 +48,8 @@ test('按钮交互增强：状态机、防连点、快捷键', () => {
   assert.match(source, /async function runTopAction\(buttonId, busyText, action\) \{/);
   assert.match(source, /function bindDraftHotkeys\(\) \{/);
   assert.match(source, /if \(\(event\.ctrlKey \|\| event\.metaKey\).*key === "s"\)/);
+  assert.match(source, /buttons\.importJson/);
+  assert.match(source, /请先切换到自证模板/);
 });
 
 test('第一章按企业缓存：跨版本复用，不写入版本快照', () => {
@@ -125,4 +140,19 @@ test('导出文件名：自证按公司名，他证按产品名', () => {
   assert.match(source, /\? sanitizeFileNamePart\(data\.product_name \|\| "产品名称"\)/);
   assert.match(source, /: sanitizeFileNamePart\(data\.company_name \|\| "企业名称"\)/);
   assert.match(source, /return `\$\{mm\}\$\{dd\}-\$\{namePart\}-\$\{versionNo\}版\.docx`;/);
+});
+
+test('JSON 导入模块暴露固定 API 和严格校验', () => {
+  assert.match(source, /window\.ReportAutomationFormApi = \{/);
+  assert.match(source, /clearSourcesForImport/);
+  assert.match(source, /clearCompetitorsForImport/);
+  assert.match(source, /fillFormFromExtractedData\(data, options = \{\}\)/);
+  assert.match(source, /keepBlankCompetitorRow = options\.keepBlankCompetitorRow !== false/);
+  assert.match(importSource, /window\.ReportJsonImport = \{/);
+  assert.match(importSource, /function importFromTextarea\(\) \{/);
+  assert.match(importSource, /schema_version\) !== "self_proof_import_v1"/);
+  assert.match(importSource, /schema_version\) !== "competitors_import_v1"/);
+  assert.match(importSource, /company_name 不能等于申报企业名称/);
+  assert.match(importSource, /不要包含图表编号/);
+  assert.match(importSource, /saveDraft\(false\)/);
 });

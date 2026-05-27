@@ -1,0 +1,78 @@
+#jsonImportModal .json-import-box {
+  width: min(820px, calc(100% - 24px));
+}
+
+#jsonImportModal .json-import-textarea {
+  width: 100%;
+  min-height: 280px;
+  resize: vertical;
+  border: 1px solid #c8d8d1;
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink);
+  background: #fff;
+  outline: none;
+  transition: border-color 130ms ease, box-shadow 130ms ease;
+}
+
+#jsonImportModal .json-import-textarea:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(15, 126, 100, 0.13);
+}
+
+#jsonImportModal .json-import-preview {
+  margin-top: 10px;
+  border: 1px solid #d8e5df;
+  border-radius: 12px;
+  padding: 8px 10px;
+  min-height: 38px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+  background: #f4faf7;
+  white-space: pre-wrap;
+}
+
+#jsonImportModal .json-import-preview.json-import-ready {
+  color: var(--ok);
+  background: #eef8f4;
+  border-color: #cfe8df;
+}
+
+#jsonImportModal .json-import-preview.json-import-warn {
+  color: var(--warn);
+  background: var(--warn-bg);
+  border-color: #f0e0b6;
+}
+
+#jsonImportModal .json-import-preview.json-import-error {
+  color: var(--error);
+  background: #fff4f4;
+  border-color: #efcccc;
+}
+
+#jsonImportModal .json-import-error {
+  display: none;
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--error);
+  white-space: pre-wrap;
+}
+
+#jsonImportModal .json-import-error.active {
+  display: block;
+}
+
+@media (max-width: 640px) {
+  #jsonImportModal .json-import-box {
+    width: calc(100% - 16px);
+    padding: 20px 16px 16px;
+  }
+
+  #jsonImportModal .json-import-textarea {
+    min-height: 220px;
+  }
+}
