@@ -20,7 +20,11 @@ test('JSON 导入模块只接受固定 schema 并按当前版本导入', () => {
   assert.match(moduleSource, /function normalizeSelfPayload\(payload\)/);
   assert.match(moduleSource, /function normalizeCompetitorPayload\(payload\)/);
   assert.match(moduleSource, /function ensureSelectedVersionMatches\(expectedCompanyName\)/);
+  assert.match(moduleSource, /modal\.classList\.add\("open"\);/);
   assert.match(moduleSource, /请先切换到自证模板再导入 JSON/);
+  assert.match(moduleSource, /请先选择企业和版本，再导入 JSON/);
+  assert.match(moduleSource, /当前模板不是自证，导入已阻止/);
+  assert.match(moduleSource, /先选企业和版本，再导入/);
   assert.match(moduleSource, /JSON 企业名称与当前版本企业不一致，请先切换到正确版本/);
   assert.match(moduleSource, /竞争对手 JSON 已导入并保存，请核对销售额和排名/);
   assert.match(moduleSource, /自证 JSON 已导入并保存，请核对字段/);

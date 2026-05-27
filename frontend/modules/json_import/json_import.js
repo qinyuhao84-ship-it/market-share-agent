@@ -55,21 +55,29 @@
   function openImportModal() {
     const api = getApi();
     const templateType = trimText(document.getElementById("template_type")?.value || "self");
-    if (templateType === "other") {
-      api.setStatus("请先切换到自证模板再导入 JSON", "error");
-      return;
-    }
-    const target = api.getSelectedVersionTarget();
-    if (!target) {
-      api.setStatus("请先选择企业和版本，再导入 JSON", "error");
-      return;
-    }
-
     const modal = getElement(MODAL_ID);
     const textarea = getElement(TEXTAREA_ID);
     textarea.value = "";
     modal.classList.add("open");
     clearFeedback();
+
+    const target = api.getSelectedVersionTarget();
+    if (templateType === "other") {
+      setError("请先切换到自证模板再导入 JSON");
+      setPreview("当前模板不是自证，导入已阻止", "error");
+      window.setTimeout(() => {
+        textarea.focus();
+      }, 0);
+      return;
+    }
+    if (!target) {
+      setError("请先选择企业和版本，再导入 JSON");
+      setPreview("先选企业和版本，再导入", "error");
+      window.setTimeout(() => {
+        textarea.focus();
+      }, 0);
+      return;
+    }
 
     window.setTimeout(() => {
       textarea.focus();
