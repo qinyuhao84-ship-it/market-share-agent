@@ -82,23 +82,6 @@
     return text;
   }
 
-  function isHttpUrl(value) {
-    try {
-      const parsed = new URL(String(value || "").trim());
-      return parsed.protocol === "http:" || parsed.protocol === "https:";
-    } catch (_error) {
-      return false;
-    }
-  }
-
-  function requireHttpUrl(value, label) {
-    const text = requireString(value, label);
-    if (!isHttpUrl(text)) {
-      throw new Error(`${label} 必须是纯 URL`);
-    }
-    return text;
-  }
-
   function normalizeDate(value, label) {
     const text = requireString(value, label);
     const match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -203,7 +186,6 @@
     }
 
     const companyName = requireString(profile.company_name, `companies[${index}].company_name`);
-    const companyUrl = requireHttpUrl(profile.company_url, `companies[${index}].company_url`);
     const registeredCapital = requireString(profile.registered_capital, `companies[${index}].registered_capital`);
     const establishedDate = normalizeDate(profile.established_date, `companies[${index}].established_date`);
     const legalRepresentative = requireString(profile.legal_representative, `companies[${index}].legal_representative`);
@@ -213,7 +195,7 @@
     return {
       requested_name: expectedName,
       company_name: companyName,
-      company_url: companyUrl,
+      company_url: "",
       registered_capital: registeredCapital,
       established_date: establishedDate,
       legal_representative: legalRepresentative,

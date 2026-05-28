@@ -26,7 +26,7 @@ test('README 固定了他证第三章提示词和 JSON 格式', () => {
   assert.match(otherReadme, /基于我们上文已经确定的申报企业、主导产品、竞争对手名单/);
   assert.match(otherReadme, /企业输出顺序必须和上文已确定的名单完全一致/);
   assert.match(otherReadme, /requested_name/);
-  assert.match(otherReadme, /company_url/);
+  assert.doesNotMatch(otherReadme, /company_url/);
   assert.match(otherReadme, /只输出一个合法 JSON 对象/);
   assert.match(otherReadme, /blocking_reasons/);
 });

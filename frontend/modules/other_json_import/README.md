@@ -15,10 +15,9 @@
 3. 不允许新增、删除、合并或重排企业。
 4. requested_name 必须原样照抄上文企业名称，用于网站匹配；不要改简称、不要补括号、不要换成别名。
 5. company_name 填你查到的公司全称。
-6. company_url 填你实际使用的来源网址，只能是企查查、爱企查或公司官网的网址。
-7. 必须真实，只能从企查查、爱企查或公司官网查找。如果任一必填信息查不到，或者上文缺少申报企业/主导产品/竞争对手名单，不要编造，status 填 "blocked"，blocking_reasons 写清楚缺少哪家公司、哪个字段。
-8. 只输出一个合法 JSON 对象，不要 Markdown，不要代码块，不要解释，不要表格，不要 JSON 之外的任何文字。
-9. 输出前自己检查一遍：JSON 必须能被 JSON.parse 解析；companies 数量必须等于“我司 + 上文竞争对手数量”；companies 顺序必须是“我司第一，竞品按 2025 年市占率降序”。
+6. 必须真实，只能从企查查、爱企查或公司官网查找。如果任一必填信息查不到，或者上文缺少申报企业/主导产品/竞争对手名单，不要编造，status 填 "blocked"，blocking_reasons 写清楚缺少哪家公司、哪个字段。
+7. 只输出一个合法 JSON 对象，不要 Markdown，不要代码块，不要解释，不要表格，不要 JSON 之外的任何文字。
+8. 输出前自己检查一遍：JSON 必须能被 JSON.parse 解析；companies 数量必须等于“我司 + 上文竞争对手数量”；companies 顺序必须是“我司第一，竞品按 2025 年市占率降序”。
 
 输出格式必须严格如下：
 
@@ -34,7 +33,6 @@
       {
         "requested_name": "【必须原样照抄上文企业名称】",
         "company_name": "【查到的公司全称】",
-        "company_url": "【企查查、爱企查或公司官网的纯网址】",
         "registered_capital": "【注册资本】",
         "established_date": "【成立日期，YYYY-MM-DD】",
         "legal_representative": "【法人】",

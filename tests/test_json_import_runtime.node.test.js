@@ -262,7 +262,7 @@ test("他证 JSON 导入会按网站顺序填入第三章企业信息并保存",
   assert.equal(captured.appliedProfiles[0].requested_name, "浙江达航数据技术有限公司");
   assert.equal(captured.appliedProfiles[1].requested_name, "北京鼎汉技术集团股份有限公司");
   assert.equal(captured.appliedProfiles[2].requested_name, "杭州高特电子设备股份有限公司");
-  assert.equal(captured.appliedProfiles[0].company_url, "https://www.qcc.com/firm/example-self");
+  assert.equal(captured.appliedProfiles[0].company_url, "");
 });
 
 test("他证 JSON 顺序错误时会失败且不保存", async () => {
