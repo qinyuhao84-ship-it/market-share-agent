@@ -722,65 +722,9 @@
       margin-bottom: 16px;
     }
 
-    .upload-zone {
-      border: 2px dashed #b9d3cb;
-      border-radius: 16px;
-      padding: 36px 20px;
-      text-align: center;
-      cursor: pointer;
-      transition: border-color 150ms, background 150ms;
-    }
-    .upload-zone.drag-over {
-      border-color: var(--brand);
-      background: var(--brand-soft);
-    }
-
-    .upload-zone .upload-icon {
-      font-size: 32px;
-      margin-bottom: 8px;
-    }
-    .upload-zone .upload-hint {
-      font-size: 13px;
-      color: var(--muted);
-      margin-top: 6px;
-    }
-
-    .upload-file-name {
-      margin-top: 8px;
-      font-size: 13px;
-      color: var(--brand);
-    }
-
-    .upload-progress {
-      display: none;
-      margin-top: 12px;
-      font-size: 13px;
-      color: var(--brand);
-    }
-    .upload-progress.active { display: block; }
-
-    .upload-error {
-      display: none;
-      margin-top: 10px;
-      font-size: 13px;
-      color: var(--error);
-    }
-    .upload-error.active { display: block; }
-
     .modal-actions {
       display: flex;
       gap: 8px;
       justify-content: flex-end;
       margin-top: 16px;
-    }
-
-    .final-badge {
-      display: inline-block;
-      background: #fef2e7;
-      color: #b05a19;
-      border: 1px solid #f5d5b0;
-      border-radius: 6px;
-      padding: 1px 7px;
-      font-size: 11px;
-      margin-left: 6px;
     }

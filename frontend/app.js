@@ -2,7 +2,6 @@
     let autoSaveTimer = null;
     let lastSavedSnapshotText = "";
     let draftLibrary = null;
-    let selectedFinalDocxFile = null;
     let otherProofChapter1Sections = [];
     let otherProofChapter1ReplayFilePath = "";
     const OTHER_CHAPTER1_CACHE_KEY = ReportAutomationChapter1Config.cacheKey;
@@ -133,7 +132,6 @@
       return {
         createCompany: document.getElementById("createCompanyBtnTop"),
         createVersion: document.getElementById("createVersionBtnTop"),
-        createFinalVersion: document.getElementById("createFinalVersionBtnTop"),
         importJson: document.getElementById("importJsonBtnTop"),
         saveVersion: document.getElementById("saveDraftBtnTop"),
         deleteVersion: document.getElementById("deleteVersionBtnTop"),
@@ -156,10 +154,6 @@
       if (buttons.createVersion) {
         buttons.createVersion.disabled = !hasCompany || !hasVersion || busyKeys.has("createVersion");
         buttons.createVersion.title = hasVersion ? "基于当前版本创建下一版" : "请先选择企业和版本";
-      }
-      if (buttons.createFinalVersion) {
-        buttons.createFinalVersion.disabled = !hasCompany || busyKeys.has("createFinalVersion");
-        buttons.createFinalVersion.title = hasCompany ? "上传最终确认的自证 .docx 并自动填充表单" : "请先选择企业";
       }
       if (buttons.importJson) {
         buttons.importJson.disabled = !isSelfTemplate || busyKeys.has("importJson");
@@ -224,105 +218,7 @@
 
     function formatDraftEntryLabel(item) {
       const base = `第${item.versionNo}版`;
-      const finalMark = item.snapshot && item.snapshot.is_final ? " 【最终】" : "";
-      return `${base}${finalMark}（${formatTimeStamp(item.savedTs)}）`;
-    }
-
-    // ── Final-version modal ────────────────────────────────────────────
-
-    function onCreateFinalVersionClick() {
-      if (!draftLibrary) {
-        setStatus("草稿库未初始化，请刷新页面", "error");
-        return;
-      }
-      const companyName = document.getElementById("draftCompanySelect")?.value || "";
-      if (!companyName) {
-        setStatus("请先选择企业，再新建最终版本", "error");
-        return;
-      }
-      selectedFinalDocxFile = null;
-      document.getElementById("uploadFileName").textContent = "";
-      document.getElementById("uploadError").className = "upload-error";
-      document.getElementById("uploadProgress").className = "upload-progress";
-      document.getElementById("modalImportBtn").disabled = true;
-      document.getElementById("fileInput").value = "";
-      document.getElementById("uploadZone").classList.remove("drag-over");
-      document.getElementById("finalVersionModal").classList.add("open");
-    }
-
-    function closeFinalVersionModal() {
-      document.getElementById("finalVersionModal").classList.remove("open");
-      selectedFinalDocxFile = null;
-    }
-
-    function onFileSelected(files) {
-      const file = files && files[0];
-      const errEl = document.getElementById("uploadError");
-      errEl.className = "upload-error";
-      const importBtn = document.getElementById("modalImportBtn");
-
-      if (!file) {
-        selectedFinalDocxFile = null;
-        document.getElementById("uploadFileName").textContent = "";
-        importBtn.disabled = true;
-        return;
-      }
-      if (!file.name.toLowerCase().endsWith(".docx")) {
-        errEl.textContent = "仅支持 .docx 文件，请重新选择";
-        errEl.className = "upload-error active";
-        importBtn.disabled = true;
-        return;
-      }
-      selectedFinalDocxFile = file;
-      document.getElementById("uploadFileName").textContent = file.name;
-      importBtn.disabled = false;
-    }
-
-    async function onImportFinalDocx() {
-      if (!selectedFinalDocxFile) return;
-      const importBtn = document.getElementById("modalImportBtn");
-      const cancelBtn = document.getElementById("modalCancelBtn");
-      const progressEl = document.getElementById("uploadProgress");
-      const errEl = document.getElementById("uploadError");
-
-      importBtn.disabled = true;
-      cancelBtn.disabled = true;
-      progressEl.className = "upload-progress active";
-      errEl.className = "upload-error";
-
-      try {
-        const formData = new FormData();
-        formData.append("file", selectedFinalDocxFile);
-
-        const resp = await fetch("/api/extract-final-docx", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!resp.ok) {
-          const detail = await resp.json().catch(() => ({}));
-          throw new Error(detail.detail || `服务器返回 ${resp.status}`);
-        }
-
-        const extracted = await resp.json();
-
-        closeFinalVersionModal();
-
-        // Fill form fields
-        fillFormFromExtractedData(extracted);
-
-        // Save as a new version marked as final
-        await saveAsFinalVersion(extracted);
-
-        setStatus("最终版本已导入并保存，请核对各字段内容");
-      } catch (err) {
-        errEl.textContent = err.message || "导入失败";
-        errEl.className = "upload-error active";
-      } finally {
-        progressEl.className = "upload-progress";
-        importBtn.disabled = false;
-        cancelBtn.disabled = false;
-      }
+      return `${base}（${formatTimeStamp(item.savedTs)}）`;
     }
 
     function fillFormFromExtractedData(data, options = {}) {
@@ -385,77 +281,6 @@
       const compBody = document.getElementById("competitorBody");
       compBody.innerHTML = "";
       refreshCompetitorBoard({ sortRows: false, syncRows: false });
-    }
-
-    async function saveAsFinalVersion(extractedData) {
-      if (!draftLibrary) return;
-
-      const companyName = document.getElementById("draftCompanySelect")?.value || "";
-      if (!companyName) {
-        setStatus("最终版本数据已填入表单，但未能自动保存（未选择企业）", "error");
-        return;
-      }
-
-      // Build snapshot from current form state (already filled)
-      const snapshot = buildDraftSnapshot(false);
-      snapshot.is_final = true;
-
-      const nextVersionNo = await draftLibrary.getNextVersionNo(companyName);
-      snapshot.saved_mode = "version";
-      snapshot.saved_version_no = nextVersionNo;
-
-      try {
-        await draftLibrary.saveVersionDraft(companyName, nextVersionNo, snapshot, Number(snapshot.saved_ts) || Date.now());
-      } catch (err) {
-        setStatus(`最终版本保存失败：${err.message || "IndexedDB 写入失败"}`, "error");
-        return;
-      }
-
-      try {
-        lastSavedSnapshotText = JSON.stringify(snapshot);
-      } catch (_e) {
-        lastSavedSnapshotText = "";
-      }
-
-      await refreshDraftPickers(companyName, `version:${nextVersionNo}`);
-      await loadDraft(true);
-      updateDraftMeta(`${companyName} 第${nextVersionNo}版【最终】已创建`);
-    }
-
-    // ── Drag-and-drop support ─────────────────────────────────────────
-
-    function setupUploadDragDrop() {
-      const zone = document.getElementById("uploadZone");
-      if (!zone) return;
-
-      zone.addEventListener("dragover", (e) => {
-        e.preventDefault();
-        zone.classList.add("drag-over");
-      });
-      zone.addEventListener("dragleave", () => {
-        zone.classList.remove("drag-over");
-      });
-      zone.addEventListener("drop", (e) => {
-        e.preventDefault();
-        zone.classList.remove("drag-over");
-        const files = e.dataTransfer && e.dataTransfer.files;
-        if (files && files.length) {
-          document.getElementById("fileInput").files = files;
-          onFileSelected(files);
-        }
-      });
-      // Close modal on overlay click
-      document.getElementById("finalVersionModal").addEventListener("click", (e) => {
-        if (e.target === document.getElementById("finalVersionModal")) {
-          closeFinalVersionModal();
-        }
-      });
-      // Close modal on Escape
-      document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && document.getElementById("finalVersionModal").classList.contains("open")) {
-          closeFinalVersionModal();
-        }
-      });
     }
 
     function getSelectedVersionTarget() {
@@ -2165,7 +1990,6 @@
       refreshCompetitorBoard();
       bindAutoSave();
       bindDraftHotkeys();
-      setupUploadDragDrop();
       toggleTemplateMode();
       updateProgress();
 

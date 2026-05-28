@@ -26,7 +26,6 @@
             <select id="draftVersionSelect" onchange="onDraftVersionChange()"></select>
           </div>
           <button id="createVersionBtnTop" class="btn subtle top-btn top-create" type="button" onclick="onCreateVersionClick()">新建版本</button>
-          <button id="createFinalVersionBtnTop" class="btn subtle top-btn top-create" type="button" onclick="onCreateFinalVersionClick()" style="background:#fff7ea;color:#b05a19;border-color:#f5d5b0;">新建最终版本</button>
           <button id="importJsonBtnTop" class="btn subtle top-btn top-create" type="button" onclick="ReportJsonImport.openImportModal()">导入 JSON</button>
           <button id="saveDraftBtnTop" class="btn primary top-btn top-save" type="button" onclick="onSaveDraftClick()">保存版本</button>
         </div>
@@ -206,27 +205,6 @@
           </div>
         </section>
       </main>
-    </div>
-  </div>
-
-  <!-- Final-version upload modal -->
-  <div class="modal-overlay" id="finalVersionModal">
-    <div class="modal-box">
-      <h3>新建最终版本</h3>
-      <p class="modal-sub">上传已确认的自证 .docx 文件，系统会自动提取内容并填写到表单中。</p>
-      <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
-        <div class="upload-icon">📄</div>
-        <div>点击此处选择文件，或将 .docx 文件拖拽到此处</div>
-        <div class="upload-hint">仅支持 .docx 格式</div>
-        <div class="upload-file-name" id="uploadFileName"></div>
-      </div>
-      <input type="file" id="fileInput" accept=".docx" style="display:none" onchange="onFileSelected(this.files)" />
-      <div class="upload-progress" id="uploadProgress">⏳ 正在解析文件...</div>
-      <div class="upload-error" id="uploadError"></div>
-      <div class="modal-actions">
-        <button class="btn subtle" type="button" id="modalCancelBtn" onclick="closeFinalVersionModal()">取消</button>
-        <button class="btn primary" type="button" id="modalImportBtn" disabled onclick="onImportFinalDocx()">导入</button>
-      </div>
     </div>
   </div>
 

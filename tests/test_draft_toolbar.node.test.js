@@ -35,6 +35,13 @@ test('旧入口已移除：恢复、清空、手选目标版本号', () => {
   assert.doesNotMatch(source, /draftTargetVersionNo/);
   assert.doesNotMatch(source, /saveDraftVersion\(/);
   assert.doesNotMatch(source, /clearDraft\(/);
+  assert.doesNotMatch(source, /createFinalVersionBtnTop/);
+  assert.doesNotMatch(source, /finalVersionModal/);
+  assert.doesNotMatch(source, /selectedFinalDocxFile/);
+  assert.doesNotMatch(source, /saveAsFinalVersion/);
+  assert.doesNotMatch(source, /extract-final-docx/);
+  assert.doesNotMatch(source, /is_final/);
+  assert.doesNotMatch(source, /final-badge/);
 });
 
 test('版本下拉切换即加载当前版本', () => {

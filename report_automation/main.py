@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from report_automation.api import extract, frontend, generate, other_proof
+from report_automation.api import frontend, generate, other_proof
 
 
 def create_app() -> FastAPI:
@@ -17,7 +17,6 @@ def create_app() -> FastAPI:
     )
     app.include_router(other_proof.router)
     app.include_router(generate.router)
-    app.include_router(extract.router)
     app.include_router(frontend.router)
     return app
 
