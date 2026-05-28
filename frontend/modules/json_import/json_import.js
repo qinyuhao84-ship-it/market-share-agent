@@ -136,6 +136,25 @@
     return text;
   }
 
+  function isHttpUrl(value) {
+    try {
+      const parsed = new URL(String(value || "").trim());
+      return parsed.protocol === "http:" || parsed.protocol === "https:";
+    } catch (_err) {
+      return false;
+    }
+  }
+
+  function normalizeSourceUrl(rawValue, label) {
+    const text = requireString(rawValue, label);
+    const markdownMatch = text.match(/^\[(.*)\]\((.*)\)$/);
+    const urlText = markdownMatch ? trimText(markdownMatch[2]) : text;
+    if (!isHttpUrl(urlText)) {
+      throw new Error(`${label} 必须是纯 URL`);
+    }
+    return urlText;
+  }
+
   function parseReportDate(rawDate) {
     const text = requireString(rawDate, "report_date");
     const match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -153,7 +172,7 @@
     ) {
       throw new Error("report_date 不是有效日期");
     }
-    return { year: match[1], month: match[2], day: match[3], text };
+    return { year: match[1], month: String(month), day: String(day), text };
   }
 
   function normalizePercent(rawValue, label) {
@@ -171,7 +190,7 @@
     const sourceNames = requireArray(item.source_names, `sources[${index}].source_names`)
       .map((value, innerIndex) => requireString(value, `sources[${index}].source_names[${innerIndex}]`));
     const sourceUrls = requireArray(item.source_urls, `sources[${index}].source_urls`)
-      .map((value, innerIndex) => requireString(value, `sources[${index}].source_urls[${innerIndex}]`));
+      .map((value, innerIndex) => normalizeSourceUrl(value, `sources[${index}].source_urls[${innerIndex}]`));
     if (!sourceNames.length) {
       throw new Error(`sources[${index}].source_names 不能为空`);
     }
@@ -259,7 +278,7 @@
       company_name: companyName,
       product_name: productName,
       product_code: productCode,
-      report_date: reportDate.text,
+      report_date: reportDate,
       target_scope: targetScope,
       company_intro: companyIntro,
       product_intro: productIntro,
@@ -361,9 +380,9 @@
         company_name: normalized.company_name,
         product_name: normalized.product_name,
         product_code: normalized.product_code,
-        year: normalized.report_date.slice(0, 4),
-        month: normalized.report_date.slice(5, 7),
-        day: normalized.report_date.slice(8, 10),
+        year: normalized.report_date.year,
+        month: normalized.report_date.month,
+        day: normalized.report_date.day,
         company_intro: normalized.company_intro,
         product_intro: normalized.product_intro,
         target_scope: normalized.target_scope,
