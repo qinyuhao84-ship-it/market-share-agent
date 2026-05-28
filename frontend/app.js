@@ -132,7 +132,8 @@
       return {
         createCompany: document.getElementById("createCompanyBtnTop"),
         createVersion: document.getElementById("createVersionBtnTop"),
-        importJson: document.getElementById("importJsonBtnTop"),
+        importSelfJson: document.getElementById("importSelfJsonBtnTop"),
+        importOtherJson: document.getElementById("importOtherJsonBtnTop"),
         saveVersion: document.getElementById("saveDraftBtnTop"),
         deleteVersion: document.getElementById("deleteVersionBtnTop"),
         deleteCompany: document.getElementById("deleteCompanyBtnTop"),
@@ -155,12 +156,20 @@
         buttons.createVersion.disabled = !hasCompany || !hasVersion || busyKeys.has("createVersion");
         buttons.createVersion.title = hasVersion ? "基于当前版本创建下一版" : "请先选择企业和版本";
       }
-      if (buttons.importJson) {
-        buttons.importJson.disabled = !isSelfTemplate || busyKeys.has("importJson");
-        buttons.importJson.title = !isSelfTemplate
+      if (buttons.importSelfJson) {
+        buttons.importSelfJson.disabled = !hasCompany || !hasVersion || !isSelfTemplate || busyKeys.has("importSelfJson");
+        buttons.importSelfJson.title = !isSelfTemplate
           ? "请先切换到自证模板"
           : hasCompany && hasVersion
-            ? "导入固定 JSON 并填充当前版本"
+            ? "导入自证基础资料或竞争对手 JSON"
+            : "先选企业和版本，再导入 JSON";
+      }
+      if (buttons.importOtherJson) {
+        buttons.importOtherJson.disabled = !hasCompany || !hasVersion || isSelfTemplate || busyKeys.has("importOtherJson");
+        buttons.importOtherJson.title = isSelfTemplate
+          ? "请先切换到他证模板"
+          : hasCompany && hasVersion
+            ? "导入他证第三章企业基本信息 JSON"
             : "先选企业和版本，再导入 JSON";
       }
       if (buttons.saveVersion) {
@@ -1002,6 +1011,17 @@
       return names;
     }
 
+    function getOtherCompanyProfileImportTargets() {
+      const selfName = document.getElementById("company_name").value.trim();
+      if (!selfName) {
+        return [];
+      }
+      return collectLookupCompanyNames().map((requested_name, index) => ({
+        requested_name,
+        is_self: index === 0,
+      }));
+    }
+
     function escapeHtml(text) {
       return String(text || "")
         .replace(/&/g, "&amp;")
@@ -1207,9 +1227,21 @@
           }
           profile[key] = value;
         }
+        const hiddenCompanyName = card.querySelector('[data-field="company_name"]');
+        const hiddenCompanyUrl = card.querySelector('[data-field="company_url"]');
+        const hiddenMatchedExactly = card.querySelector('[data-field="matched_exactly"]');
+        profile.company_name = (hiddenCompanyName ? hiddenCompanyName.value.trim() : "") || requestedName;
+        profile.company_url = hiddenCompanyUrl ? hiddenCompanyUrl.value.trim() : "";
+        profile.matched_exactly = String(hiddenMatchedExactly ? hiddenMatchedExactly.value : "").trim() === "true";
         rows.push(profile);
       }
       return { ok: true, profiles: rows };
+    }
+
+    function applyOtherCompanyProfilesImport(profiles) {
+      otherProofResolvedProfiles = Array.isArray(profiles) ? profiles : [];
+      otherProofPendingCompanies = [];
+      renderCompanyConfirmPanel();
     }
 
     function renderCompanyConfirmPanel() {
@@ -1232,9 +1264,15 @@
       holder.className = "";
       holder.innerHTML = currentNames.map((companyName) => {
         const profile = profileMap.get(companyName) || {};
+        const profileCompanyName = profile.company_name || companyName;
+        const profileCompanyUrl = profile.company_url || "";
+        const profileMatchedExactly = String(profile.matched_exactly === true || profile.matched_exactly === "true");
         return `
           <div class="confirm-card" data-company-name="${escapeHtml(companyName)}">
             <strong>${escapeHtml(companyName)}</strong>
+            <input type="hidden" data-field="company_name" value="${escapeHtml(profileCompanyName)}" />
+            <input type="hidden" data-field="company_url" value="${escapeHtml(profileCompanyUrl)}" />
+            <input type="hidden" data-field="matched_exactly" value="${escapeHtml(profileMatchedExactly)}" />
             <div class="grid-2">
               <div class="field">
                 <label>注册资本</label>
@@ -2024,6 +2062,8 @@
       saveDraft,
       setStatus,
       resetOtherCompanyLookupState,
+      getOtherCompanyProfileImportTargets,
+      applyOtherCompanyProfilesImport,
       clearSourcesForImport,
       clearCompetitorsForImport,
     };
