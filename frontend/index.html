@@ -8,7 +8,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=ZCOOL+XiaoWei&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/frontend/styles.css" />
-  <link rel="stylesheet" href="/frontend/modules/json_import/json_import.css" />
+  <link rel="stylesheet" href="/frontend/modules/self_json_import/self_json_import.css" />
+  <link rel="stylesheet" href="/frontend/modules/other_json_import/other_json_import.css" />
 </head>
 <body>
   <div class="site">
@@ -26,7 +27,8 @@
             <select id="draftVersionSelect" onchange="onDraftVersionChange()"></select>
           </div>
           <button id="createVersionBtnTop" class="btn subtle top-btn top-create" type="button" onclick="onCreateVersionClick()">新建版本</button>
-          <button id="importJsonBtnTop" class="btn subtle top-btn top-create" type="button" onclick="ReportJsonImport.openImportModal()">导入 JSON</button>
+          <button id="importSelfJsonBtnTop" class="btn subtle top-btn top-create" type="button" onclick="ReportSelfJsonImport.openImportModal()">导入自证 JSON</button>
+          <button id="importOtherJsonBtnTop" class="btn subtle top-btn top-create" type="button" onclick="ReportOtherJsonImport.openImportModal()">导入他证 JSON</button>
           <button id="saveDraftBtnTop" class="btn primary top-btn top-save" type="button" onclick="onSaveDraftClick()">保存版本</button>
         </div>
         <div class="top-actions-row top-actions-danger">
@@ -209,24 +211,46 @@
   </div>
 
   <!-- JSON import modal -->
-  <div class="modal-overlay" id="jsonImportModal">
+  <div class="modal-overlay" id="selfJsonImportModal">
     <div class="modal-box json-import-box">
-      <h3>导入 JSON</h3>
-      <p class="modal-sub">粘贴 ChatGPT 输出的原始 JSON，系统会按固定字段填充当前已选企业版本。</p>
+      <h3>导入自证 JSON</h3>
+      <p class="modal-sub">粘贴自证或竞争对手 JSON，系统会按固定字段填充当前已选企业版本。</p>
       <textarea
-        id="jsonImportTextarea"
+        id="selfJsonImportTextarea"
         class="json-import-textarea"
         spellcheck="false"
         autocapitalize="off"
         autocomplete="off"
         autocorrect="off"
-        placeholder="在这里粘贴 ChatGPT 输出的原始 JSON"
+        placeholder="在这里粘贴自证或竞争对手 JSON"
       ></textarea>
-      <div id="jsonImportPreview" class="json-import-preview">等待粘贴 JSON</div>
-      <div id="jsonImportError" class="json-import-error"></div>
+      <div id="selfJsonImportPreview" class="json-import-preview">等待粘贴 JSON</div>
+      <div id="selfJsonImportError" class="json-import-error"></div>
       <div class="modal-actions">
-        <button class="btn subtle" type="button" id="jsonImportCancelBtn" onclick="ReportJsonImport.closeImportModal()">取消</button>
-        <button class="btn primary" type="button" id="jsonImportConfirmBtn" onclick="ReportJsonImport.importFromTextarea()">导入</button>
+        <button class="btn subtle" type="button" id="selfJsonImportCancelBtn" onclick="ReportSelfJsonImport.closeImportModal()">取消</button>
+        <button class="btn primary" type="button" id="selfJsonImportConfirmBtn" onclick="ReportSelfJsonImport.importFromTextarea()">导入</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="otherJsonImportModal">
+    <div class="modal-box json-import-box">
+      <h3>导入他证 JSON</h3>
+      <p class="modal-sub">粘贴他证第三章企业基本信息 JSON，系统会按当前页面企业顺序填充。</p>
+      <textarea
+        id="otherJsonImportTextarea"
+        class="json-import-textarea"
+        spellcheck="false"
+        autocapitalize="off"
+        autocomplete="off"
+        autocorrect="off"
+        placeholder="在这里粘贴他证第三章企业基本信息 JSON"
+      ></textarea>
+      <div id="otherJsonImportPreview" class="json-import-preview">等待粘贴 JSON</div>
+      <div id="otherJsonImportError" class="json-import-error"></div>
+      <div class="modal-actions">
+        <button class="btn subtle" type="button" id="otherJsonImportCancelBtn" onclick="ReportOtherJsonImport.closeImportModal()">取消</button>
+        <button class="btn primary" type="button" id="otherJsonImportConfirmBtn" onclick="ReportOtherJsonImport.importFromTextarea()">导入</button>
       </div>
     </div>
   </div>
@@ -234,6 +258,7 @@
   <script src="/frontend/draft_library.js"></script>
   <script src="/frontend/modules/other_chapter1_config.js"></script>
   <script src="/frontend/app.js"></script>
-  <script src="/frontend/modules/json_import/json_import.js"></script>
+  <script src="/frontend/modules/self_json_import/self_json_import.js"></script>
+  <script src="/frontend/modules/other_json_import/other_json_import.js"></script>
 </body>
 </html>
