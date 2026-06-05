@@ -274,13 +274,17 @@ def _default_api_base(config: InferenceConfig) -> Optional[str]:
 
 def _resolve_api_key(api_key_env: str) -> Optional[str]:
     direct_value = (api_key_env or "").strip()
-    # 兼容“配置文件直接写 key”的模式（如 sk-xxxx），避免只能依赖环境变量名。
-    if direct_value.startswith("sk-"):
-        return direct_value
-    for key_name in (api_key_env, "OPENAI_API_KEY", "LLM_API_KEY"):
+    # 优先检查标准环境变量，让部署时的环境变量可覆盖代码中的默认 key
+    for key_name in ("OPENAI_API_KEY", "LLM_API_KEY"):
         value = os.getenv(key_name)
         if value and value.strip():
             return value.strip()
+    # 兼容“配置文件直接写 key”的模式（如 sk-xxxx）
+    if direct_value.startswith("sk-"):
+        return direct_value
+    value = os.getenv(direct_value)
+    if value and value.strip():
+        return value.strip()
     return None
 
 
