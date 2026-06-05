@@ -1369,7 +1369,7 @@
             signal: otherChapter1AbortController.signal,
             body: JSON.stringify({
               product_name: product,
-              allow_partial: false,
+              allow_partial: allowPartial,
             }),
           });
         } catch (err) {
@@ -1584,10 +1584,13 @@
         }
 
         setStatus("正在生成第一章...");
-        const chapter1WasRunning = !!otherChapter1AbortController;
-        const chapter1Ready = await ensureOtherChapter1(false, false);
-        if (!chapter1Ready && chapter1WasRunning) {
-          return;
+        const chapter1Ready = await ensureOtherChapter1(false, true);
+        if (!chapter1Ready) {
+          if (otherProofChapter1Sections.length) {
+            updateChapter1State(`第一章：已有 ${otherProofChapter1Sections.length} 个小节，已继续导出 Word`);
+          } else {
+            updateChapter1State("第一章：未完整生成，已继续导出 Word");
+          }
         }
 
         setStatus("正在检查第三章企业基本信息...");

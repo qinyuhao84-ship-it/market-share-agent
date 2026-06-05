@@ -107,7 +107,8 @@ test('第一章重新生成只能显式触发', () => {
   assert.match(source, /onclick="regenerateOtherChapter1\(\)"/);
   assert.match(source, /async function regenerateOtherChapter1\(\) \{/);
   assert.match(source, /ensureOtherChapter1\(true,\s*false\)/);
-  assert.match(source, /ensureOtherChapter1\(false,\s*false\)/);
+  assert.match(source, /ensureOtherChapter1\(false,\s*true\)/);
+  assert.doesNotMatch(source, /ensureOtherChapter1\(false,\s*false\)/);
 });
 
 test('图表标题前缀自动生成，用户只填写后半句', () => {
@@ -155,11 +156,13 @@ test('他证第一章部分失败时继续导出并显示回放路径', () => {
   assert.match(source, /id="stopChapter1Btn"/);
   assert.match(source, /function abortOtherChapter1Generation\(\) \{/);
   assert.match(source, /signal: otherChapter1AbortController\.signal/);
-  assert.match(source, /allow_partial:\s*false/);
+  assert.match(source, /allow_partial:\s*allowPartial/);
   assert.match(source, /formatApiErrorDetail\(err, chapter1RetryTip\)/);
   assert.match(source, /调试回放文件/);
-  assert.match(source, /const chapter1WasRunning = !!otherChapter1AbortController;/);
-  assert.match(source, /if \(!chapter1Ready && chapter1WasRunning\) \{\s*return;/);
+  assert.match(source, /const chapter1Ready = await ensureOtherChapter1\(false,\s*true\);/);
+  assert.match(source, /if \(!chapter1Ready\) \{[\s\S]*已继续导出 Word/);
+  assert.doesNotMatch(source, /const chapter1WasRunning = !!otherChapter1AbortController;/);
+  assert.doesNotMatch(source, /if \(!chapter1Ready && chapter1WasRunning\) \{\s*return;/);
   assert.match(source, /data\.chapter1_replay_file_path = otherProofChapter1ReplayFilePath;/);
   assert.match(source, /data\.skip_chapter1 = false;/);
   assert.match(source, /X-Chapter1-Replay-File-Path/);

@@ -522,3 +522,32 @@ def test_generate_other_template_returns_chapter1_replay_header(monkeypatch, tmp
     raw = resp.headers.get("X-Chapter1-Replay-File-Path")
     assert raw
     assert urllib.parse.unquote(raw) == "/tmp/chapter1-replay.json"
+
+
+def test_generate_other_template_keeps_word_export_when_chapter1_sections_empty(monkeypatch, tmp_path: Path):
+    client = TestClient(app_module.app)
+    payload = build_other_payload()
+    payload["chapter1_sections"] = []
+    payload["skip_chapter1"] = False
+    payload["chapter1_replay_file_path"] = "/tmp/chapter1-replay.json"
+
+    def fake_generate(data, _template_path, output_path):
+        assert data["chapter1_sections"] == []
+        assert data["skip_chapter1"] is False
+        assert data["chapter1_replay_file_path"] == "/tmp/chapter1-replay.json"
+        Path(output_path).write_bytes(b"PK\x03\x04fake-other-docx")
+        return ["第一章存在未完成内容，已按占位内容写入 Word"]
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(report_generation, "generate_other_docx", fake_generate)
+
+    resp = client.post("/generate", json=payload)
+
+    assert resp.status_code == 200
+    raw_warnings = resp.headers.get("X-Generate-Warnings")
+    assert raw_warnings
+    decoded = json.loads(urllib.parse.unquote(raw_warnings))
+    assert decoded == ["第一章存在未完成内容，已按占位内容写入 Word"]
+    raw_replay = resp.headers.get("X-Chapter1-Replay-File-Path")
+    assert raw_replay
+    assert urllib.parse.unquote(raw_replay) == "/tmp/chapter1-replay.json"
