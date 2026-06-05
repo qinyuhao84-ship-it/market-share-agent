@@ -75,7 +75,7 @@ test('按钮交互增强：状态机、防连点、快捷键', () => {
   assert.match(source, /请先切换到他证模板/);
 });
 
-test('第一章按企业缓存：跨版本复用，不写入版本快照', () => {
+test('第一章按企业缓存：版本草稿会保存并恢复第一章', () => {
   assert.match(source, /cacheKey: "report_other_chapter1_by_company_v1"/);
   assert.match(source, /const OTHER_CHAPTER1_CACHE_KEY = ReportAutomationChapter1Config\.cacheKey/);
   assert.match(source, /function chapter1SectionsContainPlaceholder\(sections\) \{/);
@@ -92,7 +92,15 @@ test('第一章按企业缓存：跨版本复用，不写入版本快照', () =>
   assert.match(source, /if \(hasPlaceholderSection\) \{[\s\S]*clearOtherChapter1Cache\(companyName\);/);
   assert.match(source, /if \(hasPlaceholderSection\) \{[\s\S]*失败位置已占位[\s\S]*return true;/);
   assert.match(source, /setOtherChapter1Cache\(companyName, otherProofChapter1Sections, product\);/);
-  assert.doesNotMatch(source, /other_chapter1_sections/);
+  assert.match(source, /chapter1_sections:\s*chapter1Sections,/);
+  assert.match(source, /chapter1_replay_file_path:\s*chapter1ReplayFilePath,/);
+  assert.match(
+    source,
+    /const hasChapter1Snapshot =[\s\S]*Object\.prototype\.hasOwnProperty\.call\(snapshot, "chapter1_sections"\);/
+  );
+  assert.match(source, /otherProofChapter1Sections = Array\.isArray\(snapshot\.chapter1_sections\) \? snapshot\.chapter1_sections : \[\];/);
+  assert.match(source, /otherProofChapter1ReplayFilePath = typeof snapshot\.chapter1_replay_file_path === "string"/);
+  assert.match(source, /if \(!hasChapter1Snapshot\) \{[\s\S]*applyCompanyChapter1Cache\(target\.companyName\);/);
 });
 
 test('第一章重新生成只能显式触发', () => {
@@ -150,6 +158,8 @@ test('他证第一章部分失败时继续导出并显示回放路径', () => {
   assert.match(source, /allow_partial:\s*false/);
   assert.match(source, /formatApiErrorDetail\(err, chapter1RetryTip\)/);
   assert.match(source, /调试回放文件/);
+  assert.match(source, /const chapter1WasRunning = !!otherChapter1AbortController;/);
+  assert.match(source, /if \(!chapter1Ready && chapter1WasRunning\) \{\s*return;/);
   assert.match(source, /data\.chapter1_replay_file_path = otherProofChapter1ReplayFilePath;/);
   assert.match(source, /data\.skip_chapter1 = false;/);
   assert.match(source, /X-Chapter1-Replay-File-Path/);

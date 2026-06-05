@@ -1352,6 +1352,8 @@
         }
       }
 
+      otherProofChapter1Sections = [];
+      otherProofChapter1ReplayFilePath = "";
       try {
         setStatus(force ? "正在重新生成第一章..." : "正在生成第一章...");
         updateChapter1State("第一章：分 5 个部分生成中");
@@ -1372,17 +1374,30 @@
           });
         } catch (err) {
           if (err && err.name === "AbortError") {
+            if (draftLibrary) {
+              await saveDraft(true);
+            }
             return false;
           }
           updateChapter1State("第一章：生成失败");
           setStatus(chapter1RetryTip, "error");
+          if (draftLibrary) {
+            await saveDraft(true);
+          }
           return false;
         }
 
         if (!resp.ok) {
           const err = await resp.json().catch(() => ({}));
+          const detail = err && err.detail;
+          if (detail && typeof detail === "object" && typeof detail.replay_file_path === "string") {
+            otherProofChapter1ReplayFilePath = detail.replay_file_path;
+          }
           updateChapter1State("第一章：生成失败");
           setStatus(formatApiErrorDetail(err, chapter1RetryTip), "error");
+          if (draftLibrary) {
+            await saveDraft(true);
+          }
           return false;
         }
 
@@ -1393,6 +1408,9 @@
         if (!generatedSections.length) {
           updateChapter1State("第一章：生成失败");
           setStatus(chapter1RetryTip, "error");
+          if (draftLibrary) {
+            await saveDraft(true);
+          }
           return false;
         }
 
@@ -1423,10 +1441,16 @@
         return true;
       } catch (_e) {
         if (_e && _e.name === "AbortError") {
+          if (draftLibrary) {
+            await saveDraft(true);
+          }
           return false;
         }
         updateChapter1State("第一章：生成失败");
         setStatus(chapter1RetryTip, "error");
+        if (draftLibrary) {
+          await saveDraft(true);
+        }
         return false;
       } finally {
         otherChapter1AbortController = null;
@@ -1560,8 +1584,9 @@
         }
 
         setStatus("正在生成第一章...");
+        const chapter1WasRunning = !!otherChapter1AbortController;
         const chapter1Ready = await ensureOtherChapter1(false, false);
-        if (!chapter1Ready) {
+        if (!chapter1Ready && chapter1WasRunning) {
           return;
         }
 
@@ -1627,6 +1652,9 @@
     function buildDraftSnapshot(isAuto = false) {
       const manualProfiles = collectManualCompanyProfiles(false).profiles;
       otherProofResolvedProfiles = manualProfiles;
+      const templateType = document.getElementById("template_type").value;
+      const chapter1Sections = templateType === "other" ? otherProofChapter1Sections : [];
+      const chapter1ReplayFilePath = templateType === "other" ? otherProofChapter1ReplayFilePath : "";
       return {
         saved_ts: Date.now(),
         saved_at: new Date().toISOString(),
@@ -1642,7 +1670,7 @@
         product_intro: document.getElementById("product_intro").value,
         report_body: document.getElementById("report_body").value,
         target_scope: document.getElementById("target_scope").value,
-        template_type: document.getElementById("template_type").value,
+        template_type: templateType,
         proof_scope: document.getElementById("proof_scope").value,
         market_name: document.getElementById("market_name").value,
         sale_23: document.getElementById("sale_23").value,
@@ -1663,6 +1691,8 @@
         competitors: collectCompetitors(),
         sources: collectSources(false),
         chapter2_layers: collectOtherLayers(),
+        chapter1_sections: chapter1Sections,
+        chapter1_replay_file_path: chapter1ReplayFilePath,
         other_resolved_profiles: manualProfiles,
         other_pending_companies: otherProofPendingCompanies,
       };
@@ -1716,6 +1746,26 @@
 
         renderCompanyConfirmPanel();
         toggleTemplateMode();
+        // 先套模板缓存，再把草稿里的第一章覆写回来，避免恢复时被缓存覆盖。
+        const hasChapter1Snapshot =
+          snapshot.template_type === "other" &&
+          Object.prototype.hasOwnProperty.call(snapshot, "chapter1_sections");
+        if (hasChapter1Snapshot) {
+          otherProofChapter1Sections = Array.isArray(snapshot.chapter1_sections) ? snapshot.chapter1_sections : [];
+          otherProofChapter1ReplayFilePath = typeof snapshot.chapter1_replay_file_path === "string"
+            ? snapshot.chapter1_replay_file_path
+            : "";
+          if (isOtherTemplate()) {
+            const hasPlaceholderSection = chapter1SectionsContainPlaceholder(otherProofChapter1Sections);
+            updateChapter1State(
+              otherProofChapter1Sections.length
+                ? (hasPlaceholderSection
+                    ? `第一章：已恢复 ${otherProofChapter1Sections.length} 个小节，含占位内容`
+                    : `第一章：已恢复 ${otherProofChapter1Sections.length} 个小节`)
+                : "第一章：尚未生成"
+            );
+          }
+        }
         ["23", "24", "25"].forEach(calcMyPct);
         updateProgress();
 
@@ -1868,7 +1918,13 @@
       const sourceLabel = `${getCompanyDisplayName(target.companyName)}第${target.versionNo}版`;
       const ok = applyDraftSnapshot(record.snapshot, sourceLabel, silent);
       if (ok) {
-        applyCompanyChapter1Cache(target.companyName);
+        const hasChapter1Snapshot =
+          record.snapshot.template_type === "other" &&
+          Object.prototype.hasOwnProperty.call(record.snapshot, "chapter1_sections");
+        if (!hasChapter1Snapshot) {
+          // 没有草稿版第一章时，才回退到企业缓存。
+          applyCompanyChapter1Cache(target.companyName);
+        }
         await refreshDraftPickers(target.companyName, `version:${target.versionNo}`);
       }
       updateTopActionState();
@@ -1932,6 +1988,7 @@
 
     function resetFormToBlank() {
       otherProofChapter1Sections = [];
+      otherProofChapter1ReplayFilePath = "";
       otherProofResolvedProfiles = [];
       otherProofPendingCompanies = [];
 
