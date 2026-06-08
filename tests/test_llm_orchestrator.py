@@ -368,3 +368,21 @@ def test_openai_client_retry_override_disables_retries():
             retry_max_attempts=0,
         )
     assert calls["count"] == 1
+
+
+def test_openai_client_includes_response_format_in_payload():
+    transport = MockTransport()
+    client = OpenAICompatibleClient(
+        api_base="https://proxy.example.com/v1",
+        api_key="sk-test",
+        model="gpt-5.1-codex",
+        client=httpx.Client(transport=httpx.MockTransport(transport)),
+    )
+
+    client.complete(
+        [{"role": "user", "content": "hi"}],
+        response_format={"type": "json_object"},
+        section_key="background_overview",
+    )
+
+    assert transport.requests[0]["body"]["response_format"] == {"type": "json_object"}

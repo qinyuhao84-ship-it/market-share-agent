@@ -131,6 +131,7 @@ class OpenAICompatibleClient:
         timeout_seconds: Optional[int] = None,
         retry_max_attempts: Optional[int] = None,
         section_key: str = "",
+        response_format: Optional[Dict[str, Any]] = None,
     ) -> str:
         payload = {
             "model": model or self.model,
@@ -139,6 +140,8 @@ class OpenAICompatibleClient:
         }
         if max_output_tokens is not None:
             payload["max_tokens"] = max_output_tokens
+        if response_format is not None:
+            payload["response_format"] = response_format
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",

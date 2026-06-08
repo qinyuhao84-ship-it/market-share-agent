@@ -156,6 +156,7 @@ def test_generate_other_chapter1_caps_request_budget(monkeypatch):
     assert kwargs["timeout_seconds"] == 420
     assert kwargs["max_output_tokens"] == 5200
     assert kwargs["retry_max_attempts"] == 1
+    assert kwargs["response_format"] == {"type": "json_object"}
     assert "section_key" not in kwargs
 
 
@@ -1010,6 +1011,27 @@ def test_split_paragraph_for_template_does_not_split_on_comma():
     left, right = other_proof._split_paragraph_for_template(text)
     assert left == text
     assert right == ""
+
+
+def test_fit_paragraphs_to_slot_count_uses_clause_splitting_for_trends():
+    paragraphs = [
+        (
+            f"第{i}段围绕技术迭代展开，强调集成化升级与软件定义能力提升，关注自动化测试与现场维护需求变化，"
+            "兼顾数据资产沉淀与跨场景适配能力，推动供应链协同与产品迭代节奏优化，最终形成更强的行业竞争力和持续演进空间"
+        )
+        for i in range(1, 7)
+    ]
+
+    fitted, warnings = other_proof._fit_paragraphs_to_slot_count(
+        paragraphs,
+        28,
+        "行业发展趋势",
+        section_key="industry_trends",
+    )
+
+    assert len(fitted) == 28
+    assert all(item != other_proof.PLACEHOLDER_TEXT for item in fitted)
+    assert any("拆分" in warning for warning in warnings)
 
 
 def test_remove_section_page_number_restart_removes_pg_num_type():
