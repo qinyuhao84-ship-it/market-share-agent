@@ -198,6 +198,34 @@ def test_generate_other_chapter1_all_transport_errors_returns_placeholders_with_
     assert replay["events"][-1]["type"] == "all_sections_incomplete"
 
 
+def test_generate_other_chapter1_unavailable_llm_writes_failure_replay(monkeypatch):
+    class FakeOrchestrator:
+        def __init__(self):
+            self.client = None
+            self.api_key_source = ""
+
+        def is_available(self):
+            return False
+
+    monkeypatch.setattr(
+        other_proof.LLMOrchestrator,
+        "from_config",
+        staticmethod(lambda _config: FakeOrchestrator()),
+    )
+
+    with pytest.raises(other_proof.OtherProofError) as exc_info:
+        generate_other_chapter1("高安全性自锁紧型电源连接系统", other_proof.InferenceConfig())
+
+    exc = exc_info.value
+    assert exc.replay_file_path
+    replay_path = Path(exc.replay_file_path)
+    assert replay_path.is_file()
+    replay = json.loads(replay_path.read_text(encoding="utf-8"))
+    assert replay["outcome"]["status"] == "failed"
+    assert replay["error"]["type"] == "ConfigurationError"
+    assert any(event["type"] == "llm_unavailable" for event in replay["events"])
+
+
 def test_generate_other_chapter1_allow_partial_writes_placeholders(monkeypatch):
     class FakeClient:
         def __init__(self):

@@ -334,7 +334,29 @@ def test_other_docx_keeps_chapter1_with_placeholders_when_chapter1_empty(tmp_pat
     assert any(text.startswith("第一章 ") and "产品概况" in text for text in texts)
     assert other_proof.PLACEHOLDER_TEXT in texts
     assert any("跳过第一章标记" in item for item in warnings)
-    assert any("第一章存在未完成内容" in item for item in warnings)
+    assert any("未生成成功" in item for item in warnings)
+
+
+def test_other_docx_keeps_chapter1_with_placeholders_when_chapter1_all_placeholder(tmp_path: Path):
+    template_path = Path("0323-高安全性自锁紧型电源连接系统市场占有率证明报告-初版.docx")
+    payload = _build_other_payload_three_layers()
+    payload["chapter1_sections"] = [
+        {
+            "key": spec["key"],
+            "title": spec["title"],
+            "paragraphs": [other_proof.PLACEHOLDER_TEXT] * spec["slot_count"],
+        }
+        for spec in other_proof.CHAPTER1_SECTION_SPECS
+    ]
+    payload["skip_chapter1"] = False
+    output_path = tmp_path / "other-placeholder-chapter1-all.docx"
+
+    warnings = other_proof.generate_other_docx(payload, template_path, output_path)
+
+    texts = _extract_paragraph_texts(output_path)
+    assert other_proof.PLACEHOLDER_TEXT in texts
+    assert any("第一章正文未生成成功" in item for item in warnings)
+    assert any("已按占位内容写入 Word" in item for item in warnings)
 
 
 def test_chart_axis_uses_integer_hundreds_for_large_values():

@@ -3,6 +3,20 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from report_automation.env import load_local_environment_files
+from report_automation.settings import ROOT_DIR
+
+
+def _bootstrap_local_environment() -> None:
+    candidate_paths = [
+        ROOT_DIR / ".env.local",
+        ROOT_DIR / ".env",
+    ]
+    load_local_environment_files(candidate_paths)
+
+
+_bootstrap_local_environment()
+
 from report_automation.api import frontend, generate, other_proof
 
 

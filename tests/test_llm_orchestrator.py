@@ -166,6 +166,24 @@ def test_llm_config_prefers_llm_api_key_when_openai_missing(monkeypatch):
     assert orchestrator.api_key_source == "LLM_API_KEY"
 
 
+def test_llm_config_prefers_deepseek_api_key_when_openai_missing(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_BASE", raising=False)
+    monkeypatch.delenv("LLM_API_BASE", raising=False)
+    monkeypatch.delenv("DEEPSEEK_API_BASE", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.setenv("DEEPSEEK_API_BASE", "https://api.deepseek.com/v1")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-deepseek-test")
+
+    config = InferenceConfig()
+    orchestrator = LLMOrchestrator.from_config(config)
+
+    assert config.llm_enabled is True
+    assert config.llm_api_key_env == "DEEPSEEK_API_KEY"
+    assert orchestrator.is_available() is True
+    assert orchestrator.api_key_source == "DEEPSEEK_API_KEY"
+
+
 def test_resolve_model_maps_deepseek_r1_alias():
     assert llm_module._resolve_model("deepseek-r1", "fallback-model") == "deepseek-reasoner"
     assert llm_module._resolve_model("DeepSeek-R1", "fallback-model") == "deepseek-reasoner"

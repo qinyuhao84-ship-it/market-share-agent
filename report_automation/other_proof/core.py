@@ -288,9 +288,6 @@ def generate_other_chapter1(product_name: str, config: InferenceConfig, allow_pa
         raise OtherProofError("主导产品名称不能为空")
 
     orchestrator = LLMOrchestrator.from_config(config)
-    if not orchestrator.is_available() or orchestrator.client is None:
-        raise OtherProofError("LLM 未配置，无法生成他证第一章")
-
     product = product_name.strip()
     chapter1_timeout_seconds = CHAPTER1_REQUEST_TIMEOUT_SECONDS
     chapter1_model = _resolve_chapter1_model_name(
@@ -312,6 +309,29 @@ def generate_other_chapter1(product_name: str, config: InferenceConfig, allow_pa
         timeout_seconds=chapter1_timeout_seconds,
         retry_max_attempts=CHAPTER1_REQUEST_RETRY_MAX_ATTEMPTS,
     )
+
+    if not orchestrator.is_available() or orchestrator.client is None:
+        warning = "LLM 未配置，无法生成他证第一章"
+        _record_chapter1_debug_event(
+            debug_replay,
+            "llm_unavailable",
+            warning,
+            {
+                "api_base": debug_replay["request"].get("api_base"),
+                "api_key_source": debug_replay["request"].get("api_key_source"),
+                "llm_enabled": debug_replay["request"].get("llm_enabled"),
+            },
+        )
+        replay_path = _write_chapter1_debug_replay(
+            debug_replay,
+            outcome="failed",
+            reason=warning,
+            error={
+                "type": "ConfigurationError",
+                "message": warning,
+            },
+        )
+        raise _set_error_replay_path(OtherProofError(warning), replay_path)
 
     raw_sections, batch_warnings = _generate_chapter1_sections_in_batches(
         client=orchestrator.client,

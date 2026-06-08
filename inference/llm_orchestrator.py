@@ -269,11 +269,16 @@ def _extract_retry_after_ms(exc: Exception) -> Optional[int]:
 
 
 def _default_api_base(config: InferenceConfig) -> Optional[str]:
-    return config.llm_api_base or os.getenv("OPENAI_API_BASE") or os.getenv("LLM_API_BASE")
+    return (
+        config.llm_api_base
+        or os.getenv("OPENAI_API_BASE")
+        or os.getenv("LLM_API_BASE")
+        or os.getenv("DEEPSEEK_API_BASE")
+    )
 
 
 def _resolve_api_key_with_source(api_key_env: str) -> tuple[Optional[str], str]:
-    for key_name in ("OPENAI_API_KEY", "LLM_API_KEY"):
+    for key_name in ("OPENAI_API_KEY", "LLM_API_KEY", "DEEPSEEK_API_KEY"):
         value = os.getenv(key_name)
         if value and value.strip():
             return value.strip(), key_name

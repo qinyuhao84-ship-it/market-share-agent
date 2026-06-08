@@ -93,13 +93,20 @@ def _normalize_market_scope(value):
 
 def _default_llm_api_base():
     return _normalize_optional_text(
-        os.getenv("OPENAI_API_BASE") or os.getenv("LLM_API_BASE") or "https://api.deepseek.com/v1"
+        os.getenv("OPENAI_API_BASE")
+        or os.getenv("LLM_API_BASE")
+        or os.getenv("DEEPSEEK_API_BASE")
+        or "https://api.deepseek.com/v1"
     )
 
 
 def _default_llm_enabled():
     api_base = _default_llm_api_base()
-    api_key = (os.getenv("OPENAI_API_KEY") or "").strip() or (os.getenv("LLM_API_KEY") or "").strip()
+    api_key = (
+        (os.getenv("OPENAI_API_KEY") or "").strip()
+        or (os.getenv("LLM_API_KEY") or "").strip()
+        or (os.getenv("DEEPSEEK_API_KEY") or "").strip()
+    )
     return bool(api_base and api_key)
 
 
@@ -108,6 +115,8 @@ def _default_llm_api_key_env():
         return "OPENAI_API_KEY"
     if (os.getenv("LLM_API_KEY") or "").strip():
         return "LLM_API_KEY"
+    if (os.getenv("DEEPSEEK_API_KEY") or "").strip():
+        return "DEEPSEEK_API_KEY"
     return "OPENAI_API_KEY"
 
 

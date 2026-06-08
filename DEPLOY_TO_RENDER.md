@@ -59,6 +59,8 @@ git push -u origin main
      - `OPENAI_API_BASE`：`https://api.deepseek.com/v1`
      - `LLM_MODEL`：`deepseek-chat`
    - 如果你使用的是 `LLM_API_KEY`，也可以把它作为备用变量配置，但 `OPENAI_API_KEY` 优先级更高
+   - 代码也支持 `DEEPSEEK_API_KEY` 和 `DEEPSEEK_API_BASE` 作为备用命名
+   - 本地启动时如果在仓库根目录放 `.env.local` 或 `.env`，服务会自动读取
 
 7. **创建服务**：点击 "Create Web Service"
 
