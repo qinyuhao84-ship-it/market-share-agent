@@ -85,6 +85,8 @@ def test_generate_other_chapter1_caps_request_budget(monkeypatch):
     class FakeClient:
         def __init__(self):
             self.calls = []
+            self.api_base = "https://proxy.example.com/v1"
+            self.model = "deepseek-chat"
 
         def complete(self, messages, **kwargs):
             self.calls.append({"messages": messages, "kwargs": kwargs})
@@ -93,6 +95,7 @@ def test_generate_other_chapter1_caps_request_budget(monkeypatch):
     class FakeOrchestrator:
         def __init__(self, client):
             self.client = client
+            self.api_key_source = "OPENAI_API_KEY"
 
         def is_available(self):
             return True
@@ -148,15 +151,15 @@ def test_generate_other_chapter1_caps_request_budget(monkeypatch):
     result = generate_other_chapter1("高安全性自锁紧型电源连接系统", config, allow_partial=False)
 
     assert len(result["sections"]) == 9
-    assert len(fake_client.calls) == 5
+    assert len(fake_client.calls) == 9
     kwargs = fake_client.calls[0]["kwargs"]
-    assert kwargs["timeout_seconds"] == 0
+    assert kwargs["timeout_seconds"] == 180
     assert kwargs["max_output_tokens"] == 5200
     assert kwargs["retry_max_attempts"] == 1
     assert "section_key" not in kwargs
 
 
-def test_generate_other_chapter1_all_transport_errors_returns_placeholder_sections(monkeypatch):
+def test_generate_other_chapter1_all_transport_errors_returns_placeholders_with_replay(monkeypatch):
     class FakeClient:
         def complete(self, *_args, **_kwargs):
             raise httpx.RemoteProtocolError("peer closed connection")
@@ -164,6 +167,7 @@ def test_generate_other_chapter1_all_transport_errors_returns_placeholder_sectio
     class FakeOrchestrator:
         def __init__(self):
             self.client = FakeClient()
+            self.api_key_source = "OPENAI_API_KEY"
 
         def is_available(self):
             return True
@@ -177,16 +181,21 @@ def test_generate_other_chapter1_all_transport_errors_returns_placeholder_sectio
     result = generate_other_chapter1("高安全性自锁紧型电源连接系统", other_proof.InferenceConfig())
 
     assert len(result["sections"]) == 9
-    assert any("所有批次均未生成成功" in item for item in result["warnings"])
+    assert any("正文未生成成功" in item for item in result["warnings"])
     assert all(
-        paragraph == other_proof.PLACEHOLDER_TEXT
+        all(paragraph == other_proof.PLACEHOLDER_TEXT for paragraph in section["paragraphs"])
         for section in result["sections"]
-        for paragraph in section["paragraphs"]
     )
     replay_path = Path(result["replay_file_path"])
     assert replay_path.is_file()
     replay = json.loads(replay_path.read_text(encoding="utf-8"))
-    assert replay["final_reordered_result"]["flattened_slots"][0]["text"] == other_proof.PLACEHOLDER_TEXT
+    assert replay["request"]["api_key_source"] == "OPENAI_API_KEY"
+    assert replay["request"]["timeout_seconds"] == 180
+    assert replay["request"]["retry_max_attempts"] == 1
+    assert replay["outcome"]["status"] == "succeeded_with_placeholders"
+    assert any("正文未生成成功" in item for item in replay["warnings"])
+    assert any(event["type"] == "all_batches_failed" for event in replay["events"])
+    assert replay["events"][-1]["type"] == "all_sections_incomplete"
 
 
 def test_generate_other_chapter1_allow_partial_writes_placeholders(monkeypatch):
@@ -196,22 +205,49 @@ def test_generate_other_chapter1_allow_partial_writes_placeholders(monkeypatch):
 
         def complete(self, messages, **kwargs):
             self.calls.append({"messages": messages, "kwargs": kwargs})
-            return json.dumps(
-                {
-                    "sections": [
-                        {
-                            "key": "industry_trends",
-                            "title": other_proof.CHAPTER1_SPEC_MAP["industry_trends"]["title"],
-                            "paragraphs": ["行业发展趋势段落 1", "行业发展趋势段落 2"],
+            prompt = messages[-1]["content"]
+            if "- background_overview（背景与概述）" in prompt:
+                return json.dumps(
+                    {
+                        "sections": [
+                            {
+                                "key": "background_overview",
+                                "title": other_proof.CHAPTER1_SPEC_MAP["background_overview"]["title"],
+                                "paragraphs": [
+                                    "背景与概述第1段，保留成功内容。",
+                                    "背景与概述第2段，保留成功内容。",
+                                    "背景与概述第3段，保留成功内容。",
+                                    "背景与概述第4段，保留成功内容。",
+                                ],
+                            }
+                        ]
+                    },
+                    ensure_ascii=False,
+                )
+            if "以下章节在第一轮生成中缺失" in prompt:
+                return json.dumps({"sections": []}, ensure_ascii=False)
+            if "请仅生成第一章中的一个小节：背景与概述" in prompt:
+                return json.dumps(
+                    {
+                        "section": {
+                            "key": "background_overview",
+                            "title": other_proof.CHAPTER1_SPEC_MAP["background_overview"]["title"],
+                            "paragraphs": [
+                                "背景与概述第1段，保留成功内容。",
+                                "背景与概述第2段，保留成功内容。",
+                                "背景与概述第3段，保留成功内容。",
+                                "背景与概述第4段，保留成功内容。",
+                            ],
                         }
-                    ]
-                },
-                ensure_ascii=False,
-            )
+                    },
+                    ensure_ascii=False,
+                )
+            raise httpx.ReadTimeout("timed out")
 
     class FakeOrchestrator:
         def __init__(self, client):
             self.client = client
+            self.api_key_source = "OPENAI_API_KEY"
 
         def is_available(self):
             return True
@@ -226,10 +262,11 @@ def test_generate_other_chapter1_allow_partial_writes_placeholders(monkeypatch):
     result = generate_other_chapter1("高安全性自锁紧型电源连接系统", other_proof.InferenceConfig(), allow_partial=True)
 
     assert len(result["sections"]) == 9
-    assert any("背景与概述" in item and "未生成成功" in item for item in result["warnings"])
-    assert any("定义" in item and "未生成成功" in item for item in result["warnings"])
     background = next(item for item in result["sections"] if item["key"] == "background_overview")
-    assert all(p == other_proof.PLACEHOLDER_TEXT for p in background["paragraphs"])
+    assert any("背景与概述第1段，保留成功内容。" in paragraph for paragraph in background["paragraphs"])
+    assert any("定义" in item and "未生成成功" in item for item in result["warnings"])
+    assert background["paragraphs"][0] == "背景与概述第1段，保留成功内容。"
+    assert any("第 2 批" in item and "生成失败" in item for item in result["warnings"])
     replay_path = Path(result["replay_file_path"])
     assert replay_path.is_file()
     replay = json.loads(replay_path.read_text(encoding="utf-8"))
@@ -239,7 +276,7 @@ def test_generate_other_chapter1_allow_partial_writes_placeholders(monkeypatch):
     assert any(event["type"] in {"wrong_batch", "warning_trigger"} for event in replay["events"])
 
 
-def test_generate_other_chapter1_allow_partial_all_failed_returns_placeholders(monkeypatch):
+def test_generate_other_chapter1_allow_partial_all_failed_returns_placeholders_with_replay(monkeypatch):
     class FakeClient:
         def complete(self, *_args, **_kwargs):
             raise httpx.ReadTimeout("timed out")
@@ -247,6 +284,7 @@ def test_generate_other_chapter1_allow_partial_all_failed_returns_placeholders(m
     class FakeOrchestrator:
         def __init__(self):
             self.client = FakeClient()
+            self.api_key_source = "OPENAI_API_KEY"
 
         def is_available(self):
             return True
@@ -260,12 +298,7 @@ def test_generate_other_chapter1_allow_partial_all_failed_returns_placeholders(m
     result = generate_other_chapter1("高安全性自锁紧型电源连接系统", other_proof.InferenceConfig(), allow_partial=True)
 
     assert len(result["sections"]) == 9
-    assert any("所有批次均未生成成功" in item for item in result["warnings"])
-    assert all(
-        paragraph == other_proof.PLACEHOLDER_TEXT
-        for section in result["sections"]
-        for paragraph in section["paragraphs"]
-    )
+    assert any("正文未生成成功" in item for item in result["warnings"])
     assert Path(result["replay_file_path"]).is_file()
 
 

@@ -54,7 +54,11 @@ git push -u origin main
 
 6. **高级设置**（点击 "Advanced"）：
    - 确保 "Auto-Deploy" 开启
-   - 环境变量无需额外添加
+   - 必须添加以下环境变量：
+     - `OPENAI_API_KEY`：你的 DeepSeek / OpenAI 兼容接口密钥
+     - `OPENAI_API_BASE`：`https://api.deepseek.com/v1`
+     - `LLM_MODEL`：`deepseek-chat`
+   - 如果你使用的是 `LLM_API_KEY`，也可以把它作为备用变量配置，但 `OPENAI_API_KEY` 优先级更高
 
 7. **创建服务**：点击 "Create Web Service"
 

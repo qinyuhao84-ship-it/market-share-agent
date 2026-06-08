@@ -66,6 +66,28 @@
       return false;
     }
 
+    function chapter1SectionsHaveRealContent(sections) {
+      if (!Array.isArray(sections) || sections.length !== CHAPTER1_SECTION_SPECS.length) return false;
+      const seenKeys = new Set();
+      let hasRealContent = false;
+      for (const section of sections) {
+        if (!section || typeof section !== "object") return false;
+        const key = String(section.key || "").trim();
+        const spec = CHAPTER1_SECTION_SPECS.find((item) => item.key === key);
+        if (!spec || seenKeys.has(key)) return false;
+        seenKeys.add(key);
+        const paragraphs = Array.isArray(section.paragraphs) ? section.paragraphs : [];
+        if (paragraphs.length < spec.slot_count) return false;
+        for (const item of paragraphs) {
+          const text = String(item || "").trim();
+          if (!text || text === CHAPTER1_PLACEHOLDER_TEXT || text.startsWith("该部分生成失败")) continue;
+          if (text.includes("待补充") || text.includes("请结合公开行业资料补充")) continue;
+          hasRealContent = true;
+        }
+      }
+      return hasRealContent;
+    }
+
     function isReusableOtherChapter1CacheEntry(entry, productName = "") {
       if (!entry || typeof entry !== "object") return false;
       if (chapter1SectionsContainPlaceholder(entry.sections)) return false;
@@ -1356,8 +1378,8 @@
       otherProofChapter1ReplayFilePath = "";
       try {
         setStatus(force ? "正在重新生成第一章..." : "正在生成第一章...");
-        updateChapter1State("第一章：分 5 个部分生成中");
-        const chapter1RetryTip = "第一章暂未生成完成。系统会保留已成功内容，失败位置写入占位内容，并返回调试回放文件路径。";
+        updateChapter1State(`第一章：分 ${CHAPTER1_SECTION_SPECS.length} 个小节生成中`);
+        const chapter1RetryTip = "第一章暂未生成完成，请查看调试回放文件后重试。";
         chapter1AbortHappened = false;
         otherChapter1AbortController = new AbortController();
         setChapter1RunningState(true);
@@ -1418,22 +1440,33 @@
         otherProofChapter1ReplayFilePath = replayFilePath;
         const hasPlaceholderSection = chapter1SectionsContainPlaceholder(otherProofChapter1Sections);
         if (hasPlaceholderSection) {
+          const hasRealContent = chapter1SectionsHaveRealContent(otherProofChapter1Sections);
           clearOtherChapter1Cache(companyName);
           saveDraft(true);
-          updateChapter1State(`第一章：部分生成 ${otherProofChapter1Sections.length} 个小节，失败位置已占位`);
-          setStatus(
-            replayFilePath
-              ? `第一章部分生成，失败位置已占位，可继续生成 Word；调试回放文件：${replayFilePath}`
-              : "第一章部分生成，失败位置已占位，可继续生成 Word",
-            "error"
-          );
+          if (hasRealContent) {
+            updateChapter1State(`第一章：部分生成 ${otherProofChapter1Sections.length} 个小节，仍有内容待补全`);
+            setStatus(
+              replayFilePath
+                ? `第一章部分生成，仍有内容待补全，可继续生成 Word；调试回放文件：${replayFilePath}`
+                : "第一章部分生成，仍有内容待补全，可继续生成 Word",
+              "error"
+            );
+          } else {
+            updateChapter1State("第一章：正文未生成成功，已继续导出 Word");
+            setStatus(
+              replayFilePath
+                ? `第一章正文未生成成功，已继续导出 Word；调试回放文件：${replayFilePath}`
+                : "第一章正文未生成成功，已继续导出 Word",
+              "error"
+            );
+          }
           return true;
         } else {
           setOtherChapter1Cache(companyName, otherProofChapter1Sections, product);
         }
         saveDraft(true);
         if (warnings.length) {
-          updateChapter1State(`第一章：已生成并缓存 ${otherProofChapter1Sections.length} 个小节，部分内容需人工补充`);
+          updateChapter1State(`第一章：已生成并缓存 ${otherProofChapter1Sections.length} 个小节，部分内容已自动整理`);
         } else {
           updateChapter1State(`第一章：已生成并缓存 ${otherProofChapter1Sections.length} 个小节`);
         }
@@ -1464,7 +1497,14 @@
         return;
       }
       const ok = await ensureOtherChapter1(true, false);
-      if (ok) setStatus("第一章已重新生成");
+      if (!ok) return;
+      const hasPlaceholderSection = chapter1SectionsContainPlaceholder(otherProofChapter1Sections);
+      const hasRealContent = chapter1SectionsHaveRealContent(otherProofChapter1Sections);
+      if (!hasPlaceholderSection) {
+        setStatus("第一章已重新生成");
+      } else if (hasRealContent) {
+        setStatus("第一章已重新生成，仍有内容待补全", "error");
+      }
     }
 
     async function resolveOtherCompanies() {
@@ -1584,7 +1624,7 @@
         }
 
         setStatus("正在生成第一章...");
-        const chapter1Ready = await ensureOtherChapter1(false, true);
+        const chapter1Ready = await ensureOtherChapter1(false, false);
         if (!chapter1Ready) {
           if (otherProofChapter1Sections.length) {
             updateChapter1State(`第一章：已有 ${otherProofChapter1Sections.length} 个小节，已继续导出 Word`);

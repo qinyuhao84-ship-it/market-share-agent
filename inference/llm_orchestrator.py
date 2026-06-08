@@ -272,20 +272,21 @@ def _default_api_base(config: InferenceConfig) -> Optional[str]:
     return config.llm_api_base or os.getenv("OPENAI_API_BASE") or os.getenv("LLM_API_BASE")
 
 
-def _resolve_api_key(api_key_env: str) -> Optional[str]:
-    direct_value = (api_key_env or "").strip()
-    # 优先检查标准环境变量，让部署时的环境变量可覆盖代码中的默认 key
+def _resolve_api_key_with_source(api_key_env: str) -> tuple[Optional[str], str]:
     for key_name in ("OPENAI_API_KEY", "LLM_API_KEY"):
         value = os.getenv(key_name)
         if value and value.strip():
-            return value.strip()
-    # 兼容“配置文件直接写 key”的模式（如 sk-xxxx）
-    if direct_value.startswith("sk-"):
-        return direct_value
-    value = os.getenv(direct_value)
-    if value and value.strip():
-        return value.strip()
-    return None
+            return value.strip(), key_name
+    env_name = (api_key_env or "").strip()
+    if env_name and env_name not in {"OPENAI_API_KEY", "LLM_API_KEY"}:
+        value = os.getenv(env_name)
+        if value and value.strip():
+            return value.strip(), env_name
+    return None, ""
+
+
+def _resolve_api_key(api_key_env: str) -> Optional[str]:
+    return _resolve_api_key_with_source(api_key_env)[0]
 
 
 def _resolve_model(value: Optional[str], fallback: str) -> str:
@@ -309,6 +310,7 @@ class LLMOrchestrator:
         planning_temperature: float = 0.2,
         extraction_temperature: float = 0.0,
         max_output_tokens: int = 1200,
+        api_key_source: str = "",
     ) -> None:
         self.client = client
         self.enabled = enabled
@@ -317,6 +319,7 @@ class LLMOrchestrator:
         self.planning_temperature = planning_temperature
         self.extraction_temperature = extraction_temperature
         self.max_output_tokens = max_output_tokens
+        self.api_key_source = api_key_source.strip()
 
     @classmethod
     def from_config(
@@ -327,7 +330,7 @@ class LLMOrchestrator:
         transport: Optional[httpx.BaseTransport] = None,
     ) -> "LLMOrchestrator":
         api_base = _default_api_base(config)
-        api_key = _resolve_api_key(config.llm_api_key_env)
+        api_key, api_key_source = _resolve_api_key_with_source(config.llm_api_key_env)
         enabled = bool(config.llm_enabled and api_base and api_key and config.llm_model)
 
         resolved_client = client
@@ -353,6 +356,7 @@ class LLMOrchestrator:
             planning_temperature=config.llm_planning_temperature,
             extraction_temperature=config.llm_extraction_temperature,
             max_output_tokens=config.llm_max_output_tokens,
+            api_key_source=api_key_source,
         )
 
     def is_available(self) -> bool:

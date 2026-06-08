@@ -46,27 +46,7 @@ CHAPTER1_SECTION_SPECS: List[Dict[str, Any]] = [
     {"key": "industry_trends", "title": "行业发展趋势", "slot_count": 28},
     {"key": "industry_supply_chain", "title": "行业供应链", "slot_count": 6},
 ]
-CHAPTER1_BATCH_KEYS: List[List[str]] = [
-    [
-        "background_overview",
-    ],
-    [
-        "definition",
-        "working_principle",
-        "product_attributes",
-        "technical_specifications",
-    ],
-    [
-        "industry_history",
-    ],
-    [
-        "industry_environment",
-        "industry_trends",
-    ],
-    [
-        "industry_supply_chain",
-    ],
-]
+CHAPTER1_BATCH_KEYS: List[List[str]] = [[item["key"]] for item in CHAPTER1_SECTION_SPECS]
 CHAPTER1_VISIBLE_PARAGRAPH_COUNTS: Dict[str, int] = {
     "background_overview": 2,
     "definition": 2,
@@ -95,6 +75,8 @@ OTHER_TEMPLATE_BODY_INDEX_DELTA = EXPECTED_CHAPTER1_SLOT_COUNT - OTHER_TEMPLATE_
 PLACEHOLDER_TEXT = "该部分生成失败，请人工补充。"
 CHAPTER1_RETRY_GUIDANCE = "第一章暂未生成完成。系统会保留已成功内容，失败位置写入占位内容，并在接口返回调试回放文件路径。"
 CHAPTER1_DEBUG_REPLAY_DIR = Path("output/chapter1_replays")
+CHAPTER1_REQUEST_TIMEOUT_SECONDS = 180
+CHAPTER1_REQUEST_RETRY_MAX_ATTEMPTS = 1
 CHAPTER1_DEBUG_TRIGGER_PATTERNS = (
     "未生成成功",
     "占位",
@@ -129,6 +111,11 @@ def _new_chapter1_debug_replay(
     model: str,
     allow_partial: bool,
     max_output_tokens: int,
+    api_base: str,
+    api_key_source: str,
+    llm_enabled: bool,
+    timeout_seconds: int,
+    retry_max_attempts: int,
 ) -> Dict[str, Any]:
     return {
         "kind": "chapter1_generation_replay",
@@ -138,6 +125,11 @@ def _new_chapter1_debug_replay(
             "model": model,
             "allow_partial": allow_partial,
             "max_output_tokens": max_output_tokens,
+            "api_base": api_base,
+            "api_key_source": api_key_source or "missing",
+            "llm_enabled": bool(llm_enabled),
+            "timeout_seconds": timeout_seconds,
+            "retry_max_attempts": retry_max_attempts,
             "expected_batches": [
                 {
                     "batch_index": index,
@@ -151,6 +143,25 @@ def _new_chapter1_debug_replay(
         "warning_history": [],
         "events": [],
     }
+
+
+def _chapter1_error_summary(exc: Exception) -> Dict[str, Any]:
+    error: Dict[str, Any] = {
+        "type": exc.__class__.__name__,
+        "message": str(exc),
+    }
+    response = getattr(exc, "response", None)
+    status_code = getattr(response, "status_code", None)
+    if status_code is not None:
+        error["status_code"] = int(status_code)
+    response_text = ""
+    try:
+        response_text = str(getattr(response, "text", "") or "").strip()
+    except Exception:
+        response_text = ""
+    if response_text:
+        error["response_text"] = response_text[:500]
+    return error
 
 
 def _record_chapter1_debug_event(
@@ -281,8 +292,7 @@ def generate_other_chapter1(product_name: str, config: InferenceConfig, allow_pa
         raise OtherProofError("LLM 未配置，无法生成他证第一章")
 
     product = product_name.strip()
-    # timeout_seconds <= 0 时，底层客户端会关闭请求超时限制。
-    chapter1_timeout_seconds = 0
+    chapter1_timeout_seconds = CHAPTER1_REQUEST_TIMEOUT_SECONDS
     chapter1_model = _resolve_chapter1_model_name(
         config.llm_model,
         getattr(orchestrator.client, "model", "") or config.llm_model,
@@ -296,6 +306,11 @@ def generate_other_chapter1(product_name: str, config: InferenceConfig, allow_pa
         model=chapter1_model,
         allow_partial=allow_partial,
         max_output_tokens=chapter1_max_output_tokens,
+        api_base=getattr(orchestrator.client, "api_base", "") or (config.llm_api_base or ""),
+        api_key_source=getattr(orchestrator, "api_key_source", "") or str(config.llm_api_key_env or "").strip(),
+        llm_enabled=orchestrator.is_available(),
+        timeout_seconds=chapter1_timeout_seconds,
+        retry_max_attempts=CHAPTER1_REQUEST_RETRY_MAX_ATTEMPTS,
     )
 
     raw_sections, batch_warnings = _generate_chapter1_sections_in_batches(
@@ -312,15 +327,23 @@ def generate_other_chapter1(product_name: str, config: InferenceConfig, allow_pa
     debug_replay["parsed_sections"] = copy.deepcopy(raw_sections)
 
     if not raw_sections:
-        warning = "第一章所有批次均未生成成功，已写入全章占位内容"
+        warning = "第一章所有批次均未生成有效正文，已继续按占位内容整理"
         warnings.append(warning)
         _record_chapter1_debug_event(
             debug_replay,
             "all_batches_failed",
             warning,
-            {"batch_count": len(CHAPTER1_BATCH_KEYS)},
+            {
+                "batch_count": len(CHAPTER1_BATCH_KEYS),
+                "failed_batches": [
+                    {
+                        "batch_index": batch_index,
+                        "batch_keys": list(batch_keys),
+                    }
+                    for batch_index, batch_keys in enumerate(CHAPTER1_BATCH_KEYS, start=1)
+                ],
+            },
         )
-
     normalized, normalize_warnings = normalize_chapter1_sections(raw_sections)
     warnings.extend(normalize_warnings)
     _record_chapter1_warnings(debug_replay, stage="normalize", warnings=normalize_warnings)
@@ -380,7 +403,7 @@ def generate_other_chapter1(product_name: str, config: InferenceConfig, allow_pa
         for spec in _find_incomplete_chapter1_specs(normalized):
             strict_failed_titles.append(spec["title"])
         if strict_failed_titles:
-            warning = "第一章有部分小节内容不完整（" + "、".join(strict_failed_titles) + "），已保留成功内容并写入占位内容"
+            warning = "第一章有部分小节内容不完整（" + "、".join(strict_failed_titles) + "），已保留成功内容并继续生成"
             warnings.append(warning)
             _record_chapter1_debug_event(
                 debug_replay,
@@ -388,6 +411,25 @@ def generate_other_chapter1(product_name: str, config: InferenceConfig, allow_pa
                 warning,
                 {"sections": strict_failed_titles},
             )
+
+    final_incomplete_specs = _find_incomplete_chapter1_specs(normalized)
+    if not _chapter1_sections_have_real_content(normalized):
+        warning = "第一章正文未生成成功，已按占位内容写入 Word"
+        warnings.append(warning)
+        _record_chapter1_debug_event(
+            debug_replay,
+            "all_sections_incomplete",
+            warning,
+            {"sections": [spec["title"] for spec in final_incomplete_specs]},
+        )
+        replay_path = _write_chapter1_debug_replay(
+            debug_replay,
+            outcome="succeeded_with_placeholders",
+            reason="第一章正文未生成成功，已按占位内容继续导出 Word",
+            warnings=warnings,
+            final_sections=normalized,
+        )
+        return {"sections": normalized, "warnings": warnings, "replay_file_path": replay_path}
 
     result = {"sections": normalized, "warnings": warnings}
     if _chapter1_replay_should_write(debug_replay, warnings=warnings, final_sections=normalized):
@@ -429,11 +471,12 @@ def _generate_chapter1_sections_in_batches(
             titles = [CHAPTER1_SPEC_MAP[key]["title"] for key in batch_keys if key in CHAPTER1_SPEC_MAP]
             warning = f"第一章第 {batch_index} 批（{'、'.join(titles)}）生成失败，已保留其他批次并写入占位内容"
             warnings.append(warning)
+            error_summary = _chapter1_error_summary(exc)
             _record_chapter1_debug_event(
                 debug_replay,
                 "batch_skipped_after_failure",
                 warning,
-                {"batch_index": batch_index, "batch_keys": list(batch_keys), "error": {"type": exc.__class__.__name__, "message": str(exc)}},
+                {"batch_index": batch_index, "batch_keys": list(batch_keys), "error": error_summary},
             )
             continue
         merged_sections.extend(batch_sections)
@@ -492,12 +535,12 @@ def _generate_chapter1_batch(
             retry_max_attempts=1,
         )
     except Exception as exc:
-        batch_record["error"] = {"type": exc.__class__.__name__, "message": str(exc)}
+        batch_record["error"] = _chapter1_error_summary(exc)
         _record_chapter1_debug_event(
             debug_replay,
             "batch_generation_failed",
             f"第一章第 {batch_index} 批模型请求失败",
-            {"batch_keys": list(batch_keys)},
+            {"batch_keys": list(batch_keys), "error": batch_record["error"]},
         )
         raise
     batch_record["raw_model_return"] = raw
@@ -675,8 +718,7 @@ def generate_other_chapter1_section(
         raise OtherProofError("LLM 未配置，无法生成他证第一章")
 
     product = product_name.strip()
-    # 兼容手动按小节重生：同样不设置超时，避免慢模型中断。
-    chapter1_timeout_seconds = 0
+    chapter1_timeout_seconds = CHAPTER1_REQUEST_TIMEOUT_SECONDS
     chapter1_model = _resolve_chapter1_model_name(
         config.llm_model,
         getattr(orchestrator.client, "model", "") or config.llm_model,
@@ -924,6 +966,16 @@ def _find_incomplete_chapter1_specs(sections: Sequence[Dict[str, Any]]) -> List[
         if not _chapter1_section_is_complete(section, spec):
             incomplete.append(spec)
     return incomplete
+
+
+def _chapter1_sections_have_real_content(sections: Sequence[Dict[str, Any]]) -> bool:
+    for section in sections:
+        if not isinstance(section, dict):
+            continue
+        paragraphs = [str(item).strip() for item in (section.get("paragraphs") or []) if str(item).strip()]
+        if any(not _is_chapter1_placeholder_text(item) for item in paragraphs):
+            return True
+    return False
 
 
 
@@ -1327,8 +1379,12 @@ def _build_other_values(
     chapter1_slots = [""] * EXPECTED_CHAPTER1_SLOT_COUNT if skip_chapter1 else _flatten_chapter1_slots(chapter1_sections)
     if len(chapter1_slots) != EXPECTED_CHAPTER1_SLOT_COUNT:
         raise OtherProofError(f"第一章段落数量异常：期望 {EXPECTED_CHAPTER1_SLOT_COUNT}，实际 {len(chapter1_slots)}")
-    if not skip_chapter1 and any(_is_chapter1_placeholder_text(item) for item in chapter1_slots):
-        warnings.append("第一章存在未完成内容，已按占位内容写入 Word")
+    if not skip_chapter1:
+        has_real_chapter1 = any(not _is_chapter1_placeholder_text(item) for item in chapter1_slots)
+        if not has_real_chapter1:
+            warnings.append("第一章正文未生成成功，已按占位内容写入 Word")
+        elif any(_is_chapter1_placeholder_text(item) for item in chapter1_slots):
+            warnings.append("第一章存在未完成内容，已按占位内容写入 Word")
 
     self_rank_23 = rank_map["2023"][self_row["display_name"]]
     self_rank_24 = rank_map["2024"][self_row["display_name"]]

@@ -183,6 +183,34 @@ def test_other_chapter1_endpoint_returns_replay_path_on_failure(monkeypatch):
     assert detail["replay_file_path"] == "/tmp/chapter1-replay.json"
 
 
+def test_other_chapter1_endpoint_returns_placeholders_on_total_failure(monkeypatch):
+    client = TestClient(app_module.app)
+
+    def fake_generate_other_chapter1(_product_name, _config, allow_partial=False):
+        return {
+            "sections": [
+                {
+                    "key": spec["key"],
+                    "title": spec["title"],
+                    "paragraphs": [other_proof_module.PLACEHOLDER_TEXT] * spec["slot_count"],
+                }
+                for spec in other_proof_module.CHAPTER1_SECTION_SPECS
+            ],
+            "warnings": ["第一章正文未生成成功，已按占位内容写入 Word"],
+            "replay_file_path": "/tmp/chapter1-replay.json",
+        }
+
+    monkeypatch.setattr(other_proof_api, "generate_other_chapter1", fake_generate_other_chapter1)
+
+    resp = client.post("/other-proof/chapter1", json={"product_name": "示例产品"})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["warnings"] == ["第一章正文未生成成功，已按占位内容写入 Word"]
+    assert body["replay_file_path"] == "/tmp/chapter1-replay.json"
+    assert len(body["sections"]) == 9
+
+
 def test_other_chapter1_endpoint_passes_allow_partial(monkeypatch):
     client = TestClient(app_module.app)
 
@@ -536,7 +564,7 @@ def test_generate_other_template_keeps_word_export_when_chapter1_sections_empty(
         assert data["skip_chapter1"] is False
         assert data["chapter1_replay_file_path"] == "/tmp/chapter1-replay.json"
         Path(output_path).write_bytes(b"PK\x03\x04fake-other-docx")
-        return ["第一章存在未完成内容，已按占位内容写入 Word"]
+        return ["第一章正文未生成成功，已按占位内容写入 Word"]
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(report_generation, "generate_other_docx", fake_generate)
@@ -547,7 +575,7 @@ def test_generate_other_template_keeps_word_export_when_chapter1_sections_empty(
     raw_warnings = resp.headers.get("X-Generate-Warnings")
     assert raw_warnings
     decoded = json.loads(urllib.parse.unquote(raw_warnings))
-    assert decoded == ["第一章存在未完成内容，已按占位内容写入 Word"]
+    assert decoded == ["第一章正文未生成成功，已按占位内容写入 Word"]
     raw_replay = resp.headers.get("X-Chapter1-Replay-File-Path")
     assert raw_replay
     assert urllib.parse.unquote(raw_replay) == "/tmp/chapter1-replay.json"

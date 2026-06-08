@@ -99,16 +99,16 @@ def _default_llm_api_base():
 
 def _default_llm_enabled():
     api_base = _default_llm_api_base()
-    api_key = os.getenv("OPENAI_API_KEY") or os.getenv("LLM_API_KEY") or "sk-a0040568cb254100abb1d7dc4e740fdf"
+    api_key = (os.getenv("OPENAI_API_KEY") or "").strip() or (os.getenv("LLM_API_KEY") or "").strip()
     return bool(api_base and api_key)
 
 
 def _default_llm_api_key_env():
-    if os.getenv("OPENAI_API_KEY"):
+    if (os.getenv("OPENAI_API_KEY") or "").strip():
         return "OPENAI_API_KEY"
-    if os.getenv("LLM_API_KEY"):
+    if (os.getenv("LLM_API_KEY") or "").strip():
         return "LLM_API_KEY"
-    return "sk-a0040568cb254100abb1d7dc4e740fdf"
+    return "OPENAI_API_KEY"
 
 
 def _default_llm_model():

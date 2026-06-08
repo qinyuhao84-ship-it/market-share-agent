@@ -90,7 +90,7 @@ test('第一章按企业缓存：版本草稿会保存并恢复第一章', () =>
   assert.match(source, /if \(!force\) \{[\s\S]*getOtherChapter1Cache\(companyName,\s*product\)/);
   assert.match(source, /const hasPlaceholderSection = chapter1SectionsContainPlaceholder\(otherProofChapter1Sections\);/);
   assert.match(source, /if \(hasPlaceholderSection\) \{[\s\S]*clearOtherChapter1Cache\(companyName\);/);
-  assert.match(source, /if \(hasPlaceholderSection\) \{[\s\S]*失败位置已占位[\s\S]*return true;/);
+  assert.match(source, /if \(hasPlaceholderSection\) \{[\s\S]*仍有内容待补全[\s\S]*return true;/);
   assert.match(source, /setOtherChapter1Cache\(companyName, otherProofChapter1Sections, product\);/);
   assert.match(source, /chapter1_sections:\s*chapter1Sections,/);
   assert.match(source, /chapter1_replay_file_path:\s*chapter1ReplayFilePath,/);
@@ -107,8 +107,8 @@ test('第一章重新生成只能显式触发', () => {
   assert.match(source, /onclick="regenerateOtherChapter1\(\)"/);
   assert.match(source, /async function regenerateOtherChapter1\(\) \{/);
   assert.match(source, /ensureOtherChapter1\(true,\s*false\)/);
-  assert.match(source, /ensureOtherChapter1\(false,\s*true\)/);
-  assert.doesNotMatch(source, /ensureOtherChapter1\(false,\s*false\)/);
+  assert.match(source, /ensureOtherChapter1\(false,\s*false\)/);
+  assert.doesNotMatch(source, /ensureOtherChapter1\(false,\s*true\)/);
 });
 
 test('图表标题前缀自动生成，用户只填写后半句', () => {
@@ -159,7 +159,7 @@ test('他证第一章部分失败时继续导出并显示回放路径', () => {
   assert.match(source, /allow_partial:\s*allowPartial/);
   assert.match(source, /formatApiErrorDetail\(err, chapter1RetryTip\)/);
   assert.match(source, /调试回放文件/);
-  assert.match(source, /const chapter1Ready = await ensureOtherChapter1\(false,\s*true\);/);
+  assert.match(source, /const chapter1Ready = await ensureOtherChapter1\(false,\s*false\);/);
   assert.match(source, /if \(!chapter1Ready\) \{[\s\S]*已继续导出 Word/);
   assert.doesNotMatch(source, /const chapter1WasRunning = !!otherChapter1AbortController;/);
   assert.doesNotMatch(source, /if \(!chapter1Ready && chapter1WasRunning\) \{\s*return;/);
