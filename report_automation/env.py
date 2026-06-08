@@ -5,6 +5,10 @@ from pathlib import Path
 from typing import Iterable
 
 
+def default_local_environment_paths(root_dir: Path) -> tuple[Path, Path]:
+    return root_dir / ".env.local", root_dir / ".env"
+
+
 def _parse_env_line(line: str) -> tuple[str, str] | None:
     text = line.strip()
     if not text or text.startswith("#"):
@@ -43,3 +47,7 @@ def _load_env_file(path: Path) -> bool:
 def load_local_environment_files(paths: Iterable[Path]) -> None:
     for path in paths:
         _load_env_file(path)
+
+
+def bootstrap_local_environment(root_dir: Path) -> None:
+    load_local_environment_files(default_local_environment_paths(root_dir))

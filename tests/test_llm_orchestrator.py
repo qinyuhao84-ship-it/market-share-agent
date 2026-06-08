@@ -140,6 +140,8 @@ def test_llm_config_disables_without_credentials(monkeypatch):
     monkeypatch.delenv("LLM_API_BASE", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("DEEPSEEK_API_BASE", raising=False)
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
 
     config = InferenceConfig()
     orchestrator = LLMOrchestrator.from_config(config)

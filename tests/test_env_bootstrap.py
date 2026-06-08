@@ -68,3 +68,34 @@ def test_load_local_environment_files_fills_blank_values(tmp_path: Path, monkeyp
 
     assert os.getenv("OPENAI_API_KEY") == "sk-from-env-file"
     assert os.getenv("OPENAI_API_BASE") == "https://proxy.example.com/v1"
+
+
+def test_bootstrap_local_environment_prefers_env_local_over_env(tmp_path: Path, monkeypatch):
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    monkeypatch.delenv("DEEPSEEK_API_BASE", raising=False)
+
+    env_local = tmp_path / ".env.local"
+    env_local.write_text(
+        "\n".join(
+            [
+                "DEEPSEEK_API_KEY=sk-local",
+                "DEEPSEEK_API_BASE=https://api.deepseek.com/v1",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "DEEPSEEK_API_KEY=sk-env",
+                "DEEPSEEK_API_BASE=https://proxy.example.com/v1",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    env_loader.bootstrap_local_environment(tmp_path)
+
+    assert os.getenv("DEEPSEEK_API_KEY") == "sk-local"
+    assert os.getenv("DEEPSEEK_API_BASE") == "https://api.deepseek.com/v1"

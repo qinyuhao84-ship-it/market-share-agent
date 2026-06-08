@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 output.docx
 .env
+.env.local
 .DS_Store
 data/
 .playwright-cli/

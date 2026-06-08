@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from datetime import datetime
 from enum import Enum
 from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from report_automation.env import bootstrap_local_environment
+
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+bootstrap_local_environment(ROOT_DIR)
 
 
 class TaskStatus(str, Enum):
