@@ -153,7 +153,7 @@ def test_generate_other_chapter1_caps_request_budget(monkeypatch):
     assert len(result["sections"]) == 9
     assert len(fake_client.calls) == 9
     kwargs = fake_client.calls[0]["kwargs"]
-    assert kwargs["timeout_seconds"] == 180
+    assert kwargs["timeout_seconds"] == 420
     assert kwargs["max_output_tokens"] == 5200
     assert kwargs["retry_max_attempts"] == 1
     assert "section_key" not in kwargs
@@ -190,7 +190,7 @@ def test_generate_other_chapter1_all_transport_errors_returns_placeholders_with_
     assert replay_path.is_file()
     replay = json.loads(replay_path.read_text(encoding="utf-8"))
     assert replay["request"]["api_key_source"] == "OPENAI_API_KEY"
-    assert replay["request"]["timeout_seconds"] == 180
+    assert replay["request"]["timeout_seconds"] == 420
     assert replay["request"]["retry_max_attempts"] == 1
     assert replay["outcome"]["status"] == "succeeded_with_placeholders"
     assert any("正文未生成成功" in item for item in replay["warnings"])

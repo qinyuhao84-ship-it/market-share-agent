@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import html
 import json
+import os
 import re
 import subprocess
 import urllib.parse
@@ -75,7 +76,7 @@ OTHER_TEMPLATE_BODY_INDEX_DELTA = EXPECTED_CHAPTER1_SLOT_COUNT - OTHER_TEMPLATE_
 PLACEHOLDER_TEXT = "该部分生成失败，请人工补充。"
 CHAPTER1_RETRY_GUIDANCE = "第一章暂未生成完成。系统会保留已成功内容，失败位置写入占位内容，并在接口返回调试回放文件路径。"
 CHAPTER1_DEBUG_REPLAY_DIR = Path("output/chapter1_replays")
-CHAPTER1_REQUEST_TIMEOUT_SECONDS = 180
+CHAPTER1_REQUEST_TIMEOUT_SECONDS = max(60, int(os.getenv("CHAPTER1_REQUEST_TIMEOUT_SECONDS", "420")))
 CHAPTER1_REQUEST_RETRY_MAX_ATTEMPTS = 1
 CHAPTER1_DEBUG_TRIGGER_PATTERNS = (
     "未生成成功",
