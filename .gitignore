@@ -6,6 +6,7 @@ output.docx
 .env.local
 .DS_Store
 data/
+output/chapter1_replays/
 .playwright-cli/
 tmp/
 tmp_doubao.png
