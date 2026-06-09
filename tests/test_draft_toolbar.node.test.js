@@ -76,23 +76,26 @@ test('按钮交互增强：状态机、防连点、快捷键', () => {
 });
 
 test('第一章按企业缓存：版本草稿会保存并恢复第一章', () => {
-  assert.match(source, /cacheKey: "report_other_chapter1_by_company_v1"/);
+  assert.match(source, /cacheKey: "report_other_chapter1_by_company_v2"/);
+  assert.match(source, /schemaVersion: "chapter1_semantic_v1"/);
+  assert.match(source, /modelName: "deepseek-v4-flash"/);
   assert.match(source, /const OTHER_CHAPTER1_CACHE_KEY = ReportAutomationChapter1Config\.cacheKey/);
   assert.match(source, /function chapter1SectionsContainPlaceholder\(sections\) \{/);
-  assert.match(source, /slot_count:\s*6/);
-  assert.match(source, /if \(paragraphs\.length < spec\.slot_count\) return true;/);
-  assert.match(source, /text\.startsWith\("该部分生成失败"\)/);
+  assert.doesNotMatch(source, /if \(paragraphs\.length < spec\.slot_count\) return true;/);
+  assert.match(source, /text\.includes\("【待补充："\)/);
   assert.match(source, /function isReusableOtherChapter1CacheEntry\(entry, productName = ""\) \{/);
   assert.match(source, /function getOtherChapter1Cache\(companyName, productName = ""\) \{/);
   assert.match(source, /if \(!isReusableOtherChapter1CacheEntry\(entry, productName\)\) \{/);
   assert.match(source, /delete otherProofChapter1CacheByCompany\[key\];/);
   assert.match(source, /function setOtherChapter1Cache\(companyName, sections, productName = ""\) \{/);
+  assert.match(source, /semantic_draft:\s*otherProofChapter1SemanticDraft \|\| null,/);
+  assert.match(source, /replay_file_path:\s*otherProofChapter1ReplayFilePath \|\| "",/);
   assert.match(source, /if \(!force\) \{[\s\S]*getOtherChapter1Cache\(companyName,\s*product\)/);
-  assert.match(source, /const hasPlaceholderSection = chapter1SectionsContainPlaceholder\(otherProofChapter1Sections\);/);
-  assert.match(source, /if \(hasPlaceholderSection\) \{[\s\S]*clearOtherChapter1Cache\(companyName\);/);
-  assert.match(source, /if \(hasPlaceholderSection\) \{[\s\S]*仍有内容待补全[\s\S]*return true;/);
-  assert.match(source, /setOtherChapter1Cache\(companyName, otherProofChapter1Sections, product\);/);
+  assert.match(source, /otherProofChapter1SemanticDraft = cached\.semantic_draft \|\| null;/);
+  assert.match(source, /otherProofChapter1TaskId = "";[\s\S]*otherProofChapter1TaskSnapshot = null;/);
+  assert.match(source, /setOtherChapter1Cache\(companyName, legacySections, product\);/);
   assert.match(source, /chapter1_sections:\s*chapter1Sections,/);
+  assert.match(source, /chapter1_semantic_draft:\s*templateType === "other" \? otherProofChapter1SemanticDraft : null,/);
   assert.match(source, /chapter1_replay_file_path:\s*chapter1ReplayFilePath,/);
   assert.match(
     source,
@@ -100,6 +103,8 @@ test('第一章按企业缓存：版本草稿会保存并恢复第一章', () =>
   );
   assert.match(source, /otherProofChapter1Sections = Array\.isArray\(snapshot\.chapter1_sections\) \? snapshot\.chapter1_sections : \[\];/);
   assert.match(source, /otherProofChapter1ReplayFilePath = typeof snapshot\.chapter1_replay_file_path === "string"/);
+  assert.match(source, /otherProofChapter1SemanticDraft = snapshot\.chapter1_semantic_draft \|\| null;/);
+  assert.match(source, /otherProofChapter1TaskId = "";[\s\S]*otherProofChapter1TaskSnapshot = null;/);
   assert.match(source, /if \(!hasChapter1Snapshot\) \{[\s\S]*applyCompanyChapter1Cache\(target\.companyName\);/);
 });
 
@@ -107,8 +112,8 @@ test('第一章重新生成只能显式触发', () => {
   assert.match(source, /onclick="regenerateOtherChapter1\(\)"/);
   assert.match(source, /async function regenerateOtherChapter1\(\) \{/);
   assert.match(source, /ensureOtherChapter1\(true,\s*false\)/);
-  assert.match(source, /ensureOtherChapter1\(false,\s*false\)/);
-  assert.doesNotMatch(source, /ensureOtherChapter1\(false,\s*true\)/);
+  assert.match(source, /ensureOtherChapter1\(false,\s*true\)/);
+  assert.doesNotMatch(source, /ensureOtherChapter1\(false,\s*false\)/);
 });
 
 test('图表标题前缀自动生成，用户只填写后半句', () => {
@@ -154,12 +159,13 @@ test('竞争对手输入不自动跳格，也不自动重排行', () => {
 test('他证第一章部分失败时继续导出并显示回放路径', () => {
   assert.doesNotMatch(source, /id="skipChapter1OnFailure"/);
   assert.match(source, /id="stopChapter1Btn"/);
-  assert.match(source, /function abortOtherChapter1Generation\(\) \{/);
+  assert.match(source, /async function abortOtherChapter1Generation\(\) \{/);
+  assert.match(source, /fetch\(`\/other-proof\/chapter1\/tasks\/\$\{encodeURIComponent\(taskId\)\}\/cancel`/);
   assert.match(source, /signal: otherChapter1AbortController\.signal/);
-  assert.match(source, /allow_partial:\s*allowPartial/);
+  assert.match(source, /allow_incomplete_export:\s*allowPartial/);
   assert.match(source, /formatApiErrorDetail\(err, chapter1RetryTip\)/);
   assert.match(source, /调试回放文件/);
-  assert.match(source, /const chapter1Ready = await ensureOtherChapter1\(false,\s*false\);/);
+  assert.match(source, /const chapter1Ready = await ensureOtherChapter1\(false,\s*true\);/);
   assert.match(source, /if \(!chapter1Ready\) \{[\s\S]*已继续导出 Word/);
   assert.doesNotMatch(source, /const chapter1WasRunning = !!otherChapter1AbortController;/);
   assert.doesNotMatch(source, /if \(!chapter1Ready && chapter1WasRunning\) \{\s*return;/);

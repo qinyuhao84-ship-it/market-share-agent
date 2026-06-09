@@ -4,6 +4,10 @@
     let draftLibrary = null;
     let otherProofChapter1Sections = [];
     let otherProofChapter1ReplayFilePath = "";
+    let otherProofChapter1TaskId = "";
+    let otherProofChapter1TaskSnapshot = null;
+    let otherProofChapter1SemanticDraft = null;
+    let otherProofChapter1TaskPollTimer = null;
     const OTHER_CHAPTER1_CACHE_KEY = ReportAutomationChapter1Config.cacheKey;
     let otherProofChapter1CacheByCompany = {};
     let otherProofResolvedProfiles = [];
@@ -56,11 +60,10 @@
         if (!spec || seenKeys.has(key)) return true;
         seenKeys.add(key);
         const paragraphs = Array.isArray(section.paragraphs) ? section.paragraphs : [];
-        if (paragraphs.length < spec.slot_count) return true;
         for (const item of paragraphs) {
           const text = String(item || "").trim();
           if (!text || text === CHAPTER1_PLACEHOLDER_TEXT || text.startsWith("该部分生成失败")) return true;
-          if (text.includes("待补充") || text.includes("请结合公开行业资料补充")) return true;
+          if (text.includes("待补充") || text.includes("请结合公开行业资料补充") || text.includes("【待补充：")) return true;
         }
       }
       return false;
@@ -77,11 +80,10 @@
         if (!spec || seenKeys.has(key)) return false;
         seenKeys.add(key);
         const paragraphs = Array.isArray(section.paragraphs) ? section.paragraphs : [];
-        if (paragraphs.length < spec.slot_count) return false;
         for (const item of paragraphs) {
           const text = String(item || "").trim();
           if (!text || text === CHAPTER1_PLACEHOLDER_TEXT || text.startsWith("该部分生成失败")) continue;
-          if (text.includes("待补充") || text.includes("请结合公开行业资料补充")) continue;
+          if (text.includes("待补充") || text.includes("请结合公开行业资料补充") || text.includes("【待补充：")) continue;
           hasRealContent = true;
         }
       }
@@ -90,6 +92,8 @@
 
     function isReusableOtherChapter1CacheEntry(entry, productName = "") {
       if (!entry || typeof entry !== "object") return false;
+      if (entry.schema_version && entry.schema_version !== ReportAutomationChapter1Config.schemaVersion) return false;
+      if (entry.model_name && entry.model_name !== ReportAutomationChapter1Config.modelName) return false;
       if (chapter1SectionsContainPlaceholder(entry.sections)) return false;
       const expectedProduct = String(productName || "").trim();
       if (!expectedProduct) return true;
@@ -116,7 +120,11 @@
       otherProofChapter1CacheByCompany[key] = {
         company_name: key,
         product_name: String(productName || "").trim(),
+        model_name: ReportAutomationChapter1Config.modelName,
+        schema_version: ReportAutomationChapter1Config.schemaVersion,
         sections: Array.isArray(sections) ? sections : [],
+        semantic_draft: otherProofChapter1SemanticDraft || null,
+        replay_file_path: otherProofChapter1ReplayFilePath || "",
         updated_ts: Date.now(),
       };
       persistOtherChapter1CacheToStorage();
@@ -134,7 +142,10 @@
       const product = document.getElementById("product_name")?.value || "";
       const entry = getOtherChapter1Cache(companyName, product);
       otherProofChapter1Sections = entry ? entry.sections : [];
-      otherProofChapter1ReplayFilePath = "";
+      otherProofChapter1SemanticDraft = entry && entry.semantic_draft ? entry.semantic_draft : null;
+      otherProofChapter1ReplayFilePath = entry && typeof entry.replay_file_path === "string" ? entry.replay_file_path : "";
+      otherProofChapter1TaskId = "";
+      otherProofChapter1TaskSnapshot = null;
       if (isOtherTemplate()) {
         updateChapter1State(
           otherProofChapter1Sections.length
@@ -1337,19 +1348,35 @@
       updateTopActionState();
     }
 
-    function abortOtherChapter1Generation() {
-      if (!otherChapter1AbortController) {
+    async function abortOtherChapter1Generation() {
+      if (!otherProofChapter1TaskId && !otherChapter1AbortController) {
         setStatus("当前没有正在执行的第一章生成任务");
         return;
       }
       chapter1AbortHappened = true;
-      otherChapter1AbortController.abort();
+      const taskId = otherProofChapter1TaskId;
+      try {
+        if (taskId) {
+          await fetch(`/other-proof/chapter1/tasks/${encodeURIComponent(taskId)}/cancel`, {
+            method: "POST",
+          });
+        }
+      } catch (_e) {
+        // 取消请求失败不影响前端终止状态
+      }
+      if (otherChapter1AbortController) {
+        otherChapter1AbortController.abort();
+      }
+      if (otherProofChapter1TaskPollTimer) {
+        clearTimeout(otherProofChapter1TaskPollTimer);
+        otherProofChapter1TaskPollTimer = null;
+      }
       setStatus("第一章生成已终止");
       updateChapter1State("第一章：已手动终止");
       setChapter1RunningState(false);
     }
 
-    async function ensureOtherChapter1(force = false, allowPartial = false) {
+    async function ensureOtherChapter1(force = false, allowPartial = true) {
       const product = document.getElementById("product_name").value.trim();
       if (!product) {
         setStatus("请先填写主导产品名称", "error");
@@ -1369,6 +1396,10 @@
         const cached = getOtherChapter1Cache(companyName, product);
         if (cached) {
           otherProofChapter1Sections = cached.sections;
+          otherProofChapter1SemanticDraft = cached.semantic_draft || null;
+          otherProofChapter1ReplayFilePath = cached.replay_file_path || "";
+          otherProofChapter1TaskId = "";
+          otherProofChapter1TaskSnapshot = null;
           updateChapter1State(`第一章：已复用企业缓存 ${otherProofChapter1Sections.length} 个小节`);
           return true;
         }
@@ -1376,22 +1407,34 @@
 
       otherProofChapter1Sections = [];
       otherProofChapter1ReplayFilePath = "";
+      otherProofChapter1TaskId = "";
+      otherProofChapter1TaskSnapshot = null;
+      otherProofChapter1SemanticDraft = null;
+      if (otherProofChapter1TaskPollTimer) {
+        clearTimeout(otherProofChapter1TaskPollTimer);
+        otherProofChapter1TaskPollTimer = null;
+      }
       try {
         setStatus(force ? "正在重新生成第一章..." : "正在生成第一章...");
-        updateChapter1State(`第一章：分 ${CHAPTER1_SECTION_SPECS.length} 个小节生成中`);
         const chapter1RetryTip = "第一章暂未生成完成，请查看调试回放文件后重试。";
         chapter1AbortHappened = false;
         otherChapter1AbortController = new AbortController();
         setChapter1RunningState(true);
+        updateChapter1State("第一章：任务已创建，正在生成中");
         let resp;
         try {
-          resp = await fetch("/other-proof/chapter1", {
+          resp = await fetch("/other-proof/chapter1/tasks", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             signal: otherChapter1AbortController.signal,
             body: JSON.stringify({
+              company_name: companyName,
               product_name: product,
-              allow_partial: allowPartial,
+              use_cache: !force,
+              enable_web_retrieval: true,
+              allow_incomplete_export: allowPartial,
+              generation_mode: "balanced",
+              model_name: "deepseek-v4-flash",
             }),
           });
         } catch (err) {
@@ -1424,54 +1467,28 @@
         }
 
         const body = await resp.json().catch(() => ({}));
-        const generatedSections = Array.isArray(body && body.sections) ? body.sections : [];
-        const warnings = Array.isArray(body && body.warnings) ? body.warnings : [];
-        const replayFilePath = typeof body.replay_file_path === "string" ? body.replay_file_path : "";
-        if (!generatedSections.length) {
-          updateChapter1State("第一章：生成失败");
-          setStatus(chapter1RetryTip, "error");
+        otherProofChapter1TaskId = typeof body.task_id === "string" ? body.task_id : "";
+        otherProofChapter1TaskSnapshot = body;
+        if (chapter1TaskIsTerminal(body)) {
+          const ok = applyOtherChapter1TaskResult(body, companyName, product);
+          if (draftLibrary) {
+            await saveDraft(true);
+          }
+          return ok;
+        }
+
+        const finalSnapshot = await pollOtherChapter1Task(otherProofChapter1TaskId);
+        if (!finalSnapshot) {
           if (draftLibrary) {
             await saveDraft(true);
           }
           return false;
         }
-
-        otherProofChapter1Sections = generatedSections;
-        otherProofChapter1ReplayFilePath = replayFilePath;
-        const hasPlaceholderSection = chapter1SectionsContainPlaceholder(otherProofChapter1Sections);
-        if (hasPlaceholderSection) {
-          const hasRealContent = chapter1SectionsHaveRealContent(otherProofChapter1Sections);
-          clearOtherChapter1Cache(companyName);
-          saveDraft(true);
-          if (hasRealContent) {
-            updateChapter1State(`第一章：部分生成 ${otherProofChapter1Sections.length} 个小节，仍有内容待补全`);
-            setStatus(
-              replayFilePath
-                ? `第一章部分生成，仍有内容待补全，可继续生成 Word；调试回放文件：${replayFilePath}`
-                : "第一章部分生成，仍有内容待补全，可继续生成 Word",
-              "error"
-            );
-          } else {
-            updateChapter1State("第一章：正文未生成成功，已继续导出 Word");
-            setStatus(
-              replayFilePath
-                ? `第一章正文未生成成功，已继续导出 Word；调试回放文件：${replayFilePath}`
-                : "第一章正文未生成成功，已继续导出 Word",
-              "error"
-            );
-          }
-          return true;
-        } else {
-          setOtherChapter1Cache(companyName, otherProofChapter1Sections, product);
+        const ok = applyOtherChapter1TaskResult(finalSnapshot, companyName, product);
+        if (draftLibrary) {
+          await saveDraft(true);
         }
-        saveDraft(true);
-        if (warnings.length) {
-          updateChapter1State(`第一章：已生成并缓存 ${otherProofChapter1Sections.length} 个小节，部分内容已自动整理`);
-        } else {
-          updateChapter1State(`第一章：已生成并缓存 ${otherProofChapter1Sections.length} 个小节`);
-        }
-        setStatus(replayFilePath ? `第一章已生成；调试回放文件：${replayFilePath}` : "第一章已生成");
-        return true;
+        return ok;
       } catch (_e) {
         if (_e && _e.name === "AbortError") {
           if (draftLibrary) {
@@ -1489,6 +1506,151 @@
         otherChapter1AbortController = null;
         setChapter1RunningState(false);
       }
+    }
+
+    function chapter1TaskIsTerminal(snapshot) {
+      const status = String(snapshot && snapshot.status || "").trim();
+      return ["completed", "completed_with_missing", "failed", "cancelled"].includes(status);
+    }
+
+    async function pollOtherChapter1Task(taskId) {
+      if (!taskId) return null;
+      while (true) {
+        if (otherChapter1AbortController && otherChapter1AbortController.signal.aborted) {
+          return null;
+        }
+        let resp;
+        try {
+          resp = await fetch(`/other-proof/chapter1/tasks/${encodeURIComponent(taskId)}`, {
+            signal: otherChapter1AbortController ? otherChapter1AbortController.signal : undefined,
+          });
+        } catch (err) {
+          if (err && err.name === "AbortError") return null;
+          setStatus("第一章任务查询失败", "error");
+          updateChapter1State("第一章：任务查询失败");
+          return null;
+        }
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          setStatus("第一章任务查询失败：" + formatApiErrorDetail(err, "未知错误"), "error");
+          updateChapter1State("第一章：任务查询失败");
+          return null;
+        }
+
+        const snapshot = await resp.json().catch(() => ({}));
+        otherProofChapter1TaskSnapshot = snapshot;
+        const progress = Number(snapshot.progress || 0);
+        const currentSection = String(snapshot.current_section || "").trim();
+        const currentStage = String(snapshot.current_stage || "").trim();
+        const modelName = String(snapshot.model_name || "deepseek-v4-flash").trim();
+        updateChapter1State(
+          `第一章：${progress}%${currentSection ? `｜${currentSection}` : ""}${currentStage ? `｜${currentStage}` : ""}`
+        );
+        setStatus(`第一章生成中：${progress}%（模型：${modelName}）`);
+        if (chapter1TaskIsTerminal(snapshot)) {
+          return snapshot;
+        }
+        await new Promise((resolve) => {
+          otherProofChapter1TaskPollTimer = window.setTimeout(resolve, 1200);
+        });
+        otherProofChapter1TaskPollTimer = null;
+      }
+    }
+
+    function applyOtherChapter1TaskResult(snapshot, companyName, product) {
+      if (!snapshot || typeof snapshot !== "object") {
+        updateChapter1State("第一章：任务结果为空");
+        setStatus("第一章任务结果为空", "error");
+        return false;
+      }
+
+      const legacySections = Array.isArray(snapshot.legacy_sections) ? snapshot.legacy_sections : [];
+      const semanticDraft = snapshot.semantic_draft || null;
+      const replayFilePath = typeof snapshot.replay_file_path === "string" ? snapshot.replay_file_path : "";
+      const taskId = typeof snapshot.task_id === "string" ? snapshot.task_id : "";
+      const warnings = Array.isArray(snapshot.warnings) ? snapshot.warnings : [];
+      if (!legacySections.length) {
+        otherProofChapter1TaskId = taskId;
+        otherProofChapter1TaskSnapshot = snapshot;
+        otherProofChapter1Sections = [];
+        otherProofChapter1SemanticDraft = semanticDraft;
+        otherProofChapter1ReplayFilePath = replayFilePath;
+        updateChapter1State("第一章：生成失败");
+        setStatus("第一章生成失败，未返回可导出的章节内容", "error");
+        return false;
+      }
+
+      otherProofChapter1TaskId = taskId;
+      otherProofChapter1TaskSnapshot = snapshot;
+      otherProofChapter1Sections = legacySections;
+      otherProofChapter1SemanticDraft = semanticDraft;
+      otherProofChapter1ReplayFilePath = replayFilePath;
+
+      const hasPlaceholderSection = chapter1SectionsContainPlaceholder(legacySections);
+      const hasRealContent = chapter1SectionsHaveRealContent(legacySections);
+
+      if (snapshot.status === "completed") {
+        if (hasRealContent) {
+          setOtherChapter1Cache(companyName, legacySections, product);
+        } else {
+          clearOtherChapter1Cache(companyName);
+        }
+        saveDraft(true);
+        updateChapter1State(
+          warnings.length
+            ? `第一章：已生成并缓存 ${legacySections.length} 个小节，部分内容已自动整理`
+            : `第一章：已生成并缓存 ${legacySections.length} 个小节`
+        );
+        setStatus(replayFilePath ? `第一章已生成；调试回放文件：${replayFilePath}` : "第一章已生成");
+        return true;
+      }
+
+      if (snapshot.status === "completed_with_missing") {
+        if (hasRealContent) {
+          setOtherChapter1Cache(companyName, legacySections, product);
+        } else {
+          clearOtherChapter1Cache(companyName);
+        }
+        saveDraft(true);
+        updateChapter1State(`第一章：部分生成 ${legacySections.length} 个小节，仍有内容待补全`);
+        setStatus(
+          replayFilePath
+            ? `第一章部分生成，可继续导出 Word；调试回放文件：${replayFilePath}`
+            : "第一章部分生成，可继续导出 Word",
+          "error"
+        );
+        return true;
+      }
+
+      if (snapshot.status === "cancelled") {
+        saveDraft(true);
+        updateChapter1State("第一章：任务已取消");
+        setStatus("第一章任务已取消", "error");
+        return hasRealContent;
+      }
+
+      if (hasRealContent) {
+        clearOtherChapter1Cache(companyName);
+        saveDraft(true);
+        updateChapter1State(`第一章：已有 ${legacySections.length} 个小节，已继续导出 Word`);
+        setStatus(
+          replayFilePath
+            ? `第一章生成失败，已继续导出 Word；调试回放文件：${replayFilePath}`
+            : "第一章生成失败，已继续导出 Word",
+          "error"
+        );
+      } else {
+        clearOtherChapter1Cache(companyName);
+        saveDraft(true);
+        updateChapter1State("第一章：生成失败");
+        setStatus(
+          replayFilePath
+            ? `第一章生成失败；调试回放文件：${replayFilePath}`
+            : "第一章生成失败",
+          "error"
+        );
+      }
+      return false;
     }
 
     async function regenerateOtherChapter1() {
@@ -1624,7 +1786,7 @@
         }
 
         setStatus("正在生成第一章...");
-        const chapter1Ready = await ensureOtherChapter1(false, false);
+        const chapter1Ready = await ensureOtherChapter1(false, true);
         if (!chapter1Ready) {
           if (otherProofChapter1Sections.length) {
             updateChapter1State(`第一章：已有 ${otherProofChapter1Sections.length} 个小节，已继续导出 Word`);
@@ -1735,6 +1897,7 @@
         sources: collectSources(false),
         chapter2_layers: collectOtherLayers(),
         chapter1_sections: chapter1Sections,
+        chapter1_semantic_draft: templateType === "other" ? otherProofChapter1SemanticDraft : null,
         chapter1_replay_file_path: chapter1ReplayFilePath,
         other_resolved_profiles: manualProfiles,
         other_pending_companies: otherProofPendingCompanies,
@@ -1762,6 +1925,9 @@
 
         otherProofResolvedProfiles = Array.isArray(snapshot.other_resolved_profiles) ? snapshot.other_resolved_profiles : [];
         otherProofPendingCompanies = Array.isArray(snapshot.other_pending_companies) ? snapshot.other_pending_companies : [];
+        otherProofChapter1SemanticDraft = snapshot.chapter1_semantic_draft || null;
+        otherProofChapter1TaskId = "";
+        otherProofChapter1TaskSnapshot = null;
 
         const competitorBody = document.getElementById("competitorBody");
         competitorBody.innerHTML = "";

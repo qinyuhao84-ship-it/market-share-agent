@@ -122,6 +122,11 @@ def test_create_app_registers_public_routes():
     assert "/other-proof/chapter1" in route_paths
     assert "/other-proof/chapter1-section" in route_paths
     assert "/other-proof/company-lookup" in route_paths
+    assert "/other-proof/chapter1/tasks" in route_paths
+    assert "/other-proof/chapter1/tasks/{task_id}" in route_paths
+    assert "/other-proof/chapter1/tasks/{task_id}/cancel" in route_paths
+    assert "/other-proof/chapter1/tasks/{task_id}/sections/{section_key}/retry" in route_paths
+    assert "/other-proof/chapter1/tasks/{task_id}/sections/{section_key}/repair" in route_paths
     assert "/system/debug" in route_paths
     assert "/" in route_paths
     assert "/frontend/{file_path:path}" in route_paths

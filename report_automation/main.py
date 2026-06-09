@@ -13,7 +13,7 @@ def _bootstrap_local_environment() -> None:
 
 _bootstrap_local_environment()
 
-from report_automation.api import frontend, generate, other_proof, system
+from report_automation.api import frontend, generate, other_chapter1, other_proof, system
 
 
 def create_app() -> FastAPI:
@@ -27,6 +27,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(system.router)
     app.include_router(other_proof.router)
+    app.include_router(other_chapter1.router)
     app.include_router(generate.router)
     app.include_router(frontend.router)
     return app
