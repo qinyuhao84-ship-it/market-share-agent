@@ -77,7 +77,7 @@ def test_create_task_api_returns_task_id_and_get_returns_legacy_sections(monkeyp
                         Chapter1ContentBlock(
                             block_id="background_overview_001",
                             block_type="intro",
-                            heading="概述",
+                            heading="",
                             body="这是一段足够长的正文内容，用于模拟任务完成后的语义草稿。",
                             source_refs=["source_001"],
                         )
@@ -89,7 +89,7 @@ def test_create_task_api_returns_task_id_and_get_returns_legacy_sections(monkeyp
         )
         snapshot.semantic_draft = draft
         snapshot.legacy_sections = [
-            {"key": "background_overview", "title": "背景与概述", "paragraphs": ["概述：这是一段足够长的正文内容，用于模拟任务完成后的语义草稿。"]},
+            {"key": "background_overview", "title": "背景与概述", "paragraphs": ["这是一段足够长的正文内容，用于模拟任务完成后的语义草稿。"]},
         ]
         snapshot.status = Chapter1TaskStatus.COMPLETED_WITH_MISSING
         snapshot.progress = 100
@@ -137,7 +137,8 @@ def test_create_task_api_returns_task_id_and_get_returns_legacy_sections(monkeyp
     assert snapshot["status"] == "completed_with_missing"
     assert snapshot["can_export"] is True
     assert snapshot["legacy_sections"][0]["key"] == "background_overview"
-    assert snapshot["legacy_sections"][0]["paragraphs"][0].startswith("概述：")
+    assert "：" not in snapshot["legacy_sections"][0]["paragraphs"][0]
+    assert snapshot["legacy_sections"][0]["paragraphs"][0] == "这是一段足够长的正文内容，用于模拟任务完成后的语义草稿。"
     assert snapshot["diagnostics"]["local_retrieval"] == "disabled"
 
 

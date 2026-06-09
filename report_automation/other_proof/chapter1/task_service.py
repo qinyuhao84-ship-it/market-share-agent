@@ -145,8 +145,9 @@ class Chapter1TaskService:
                     }
                 )
             except Exception as exc:
-                section_errors.append(str(exc))
-                warnings.append(f"{section_title} 生成失败：{exc}")
+                error_text = f"{exc.__class__.__name__}: {exc}"
+                section_errors.append(error_text)
+                warnings.append(f"{section_title} 生成失败：{error_text}")
                 section = Chapter1SemanticSection(
                     section_id=section_key,
                     section_title=section_title,
@@ -155,16 +156,16 @@ class Chapter1TaskService:
                     sources=list(sources),
                     status=Chapter1SectionStatus.FAILED,
                     validation_score=0,
-                    validation_issues=[str(exc)],
+                    validation_issues=[error_text],
                     missing_items=[section_title],
                     repair_attempts=0,
-                    warnings=[str(exc)],
+                    warnings=[error_text],
                 )
                 generation_records.append(
                     {
                         "section_key": section_key,
                         "section_title": section_title,
-                        "error": str(exc),
+                        "error": error_text,
                         "messages": copy.deepcopy(getattr(section_generator, "last_messages", [])),
                     }
                 )
@@ -591,14 +592,14 @@ def _needs_repair(section: Chapter1SemanticSection) -> bool:
 
 def _section_summary(section_title: str, section: Chapter1SemanticSection) -> str:
     if not section.content_blocks:
-        return f"{section_title}：{section.status.value}"
+        return f"{section_title} {section.status.value}".strip()
     first_block = section.content_blocks[0]
     heading = str(first_block.heading or "").strip()
     body = str(first_block.body or "").strip()
     snippet = body[:60]
     if heading:
-        return f"{section_title}：{heading} {snippet}".strip()
-    return f"{section_title}：{snippet}".strip()
+        return f"{section_title} {heading} {snippet}".strip()
+    return f"{section_title} {snippet}".strip()
 
 
 def _dedupe_sources(sources: Sequence[Any]) -> list[Any]:

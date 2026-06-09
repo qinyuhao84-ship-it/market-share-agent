@@ -11,6 +11,7 @@ from .models import (
     Chapter1SectionStatus,
     Chapter1Source,
 )
+from .text_polisher import UNCERTAIN_WORDS
 
 ALLOWED_BLOCK_TYPES = {
     "intro",
@@ -31,9 +32,12 @@ ALLOWED_BLOCK_TYPES = {
     "technology",
     "trend",
     "competition",
+    "supply_chain_overview",
     "upstream",
     "midstream",
     "downstream",
+    "core_challenges",
+    "development_direction",
     "summary",
     "analysis",
     "risk",
@@ -96,6 +100,15 @@ def validate_section(section: Chapter1SemanticSection, section_spec: Mapping[str
         if not body:
             block_issues.append("正文为空")
             score -= 30
+        if heading:
+            block_issues.append("heading 应为空，避免生成标题式正文")
+            score -= 10
+        if _has_colon(body) or _has_colon(heading):
+            block_issues.append("正文存在冒号或标签式表达")
+            score -= 15
+        if _has_uncertain_words(body):
+            block_issues.append("正文存在不确定或估算表达")
+            score -= 10
         chinese_chars = _count_cjk_chars(body)
         if chinese_chars < 30:
             block_issues.append("正文长度不足")
@@ -121,9 +134,13 @@ def validate_section(section: Chapter1SemanticSection, section_spec: Mapping[str
 
     missing_block_types = [item for item in required_block_types if item not in block_types_seen]
     if missing_block_types:
-        issues.append(f"缺少必要块类型：{', '.join(missing_block_types)}")
+        if section.section_id == "industry_supply_chain":
+            issues.append(f"供应链缺少必要内容块：{', '.join(missing_block_types)}")
+            score -= 20 + 5 * len(missing_block_types)
+        else:
+            issues.append(f"缺少必要块类型：{', '.join(missing_block_types)}")
+            score -= 20
         missing_items.extend(missing_block_types)
-        score -= 20
 
     if section.sources and not has_real_source:
         issues.append("资料来源未被正文引用")
@@ -235,6 +252,29 @@ def validate_draft(draft: Chapter1SemanticDraft) -> Chapter1SemanticDraft:
 def _contains_placeholder(text: str) -> bool:
     normalized = str(text or "").strip()
     return any(pattern in normalized for pattern in PLACEHOLDER_PATTERNS)
+
+
+def _has_colon(text: str) -> bool:
+    value = str(text or "")
+    return "：" in value or ":" in value
+
+
+def _has_uncertain_words(text: str) -> bool:
+    value = str(text or "")
+    return any(word in value for word in UNCERTAIN_WORDS)
+
+
+def _has_company_name(text: str, company_name: str = "") -> bool:
+    company = str(company_name or "").strip()
+    if not company:
+        return False
+    candidates = [
+        company,
+        company.replace("有限公司", ""),
+        company.replace("股份有限公司", ""),
+        company.replace("科技有限公司", ""),
+    ]
+    return any(item and item in str(text or "") for item in candidates)
 
 
 def _looks_like_other_section_title(text: str) -> bool:

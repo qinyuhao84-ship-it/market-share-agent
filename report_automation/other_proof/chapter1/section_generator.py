@@ -15,6 +15,7 @@ from .models import (
     Chapter1Source,
 )
 from .prompt_builder import build_section_prompt
+from .text_polisher import polish_chapter1_paragraph
 
 
 class Chapter1SectionGenerator:
@@ -84,7 +85,12 @@ class Chapter1SectionGenerator:
         self.last_parsed_output = copy.deepcopy(parsed)
         self.last_record["parsed_output"] = copy.deepcopy(parsed)
 
-        section = self._payload_to_section(parsed, section_spec=section_spec, sources=sources)
+        section = self._payload_to_section(
+            parsed,
+            section_spec=section_spec,
+            sources=sources,
+            company_name=company_name,
+        )
         self.last_record["content_block_count"] = len(section.content_blocks)
         return section
 
@@ -94,6 +100,7 @@ class Chapter1SectionGenerator:
         *,
         section_spec: Mapping[str, Any],
         sources: Sequence[Chapter1Source],
+        company_name: str = "",
     ) -> Chapter1SemanticSection:
         section_key = str(section_spec.get("key") or "").strip()
         section_title = str(section_spec.get("title") or "").strip()
@@ -103,18 +110,20 @@ class Chapter1SectionGenerator:
         for index, item in enumerate(block_payloads, start=1):
             if not isinstance(item, Mapping):
                 continue
-            body = str(item.get("body") or item.get("text") or "").strip()
+            body = polish_chapter1_paragraph(
+                str(item.get("body") or item.get("text") or "").strip(),
+                company_name=company_name,
+            )
             if not body:
                 continue
             block_type = str(item.get("block_type") or item.get("type") or "body").strip() or "body"
-            heading = str(item.get("heading") or "").strip()
             source_refs = [str(ref).strip() for ref in (item.get("source_refs") or []) if str(ref).strip()]
             confidence = str(item.get("confidence") or "medium").strip() or "medium"
             blocks.append(
                 Chapter1ContentBlock(
                     block_id=str(item.get("block_id") or f"{section_key}_{index:03d}").strip(),
                     block_type=block_type,
-                    heading=heading,
+                    heading="",
                     body=body,
                     source_refs=source_refs,
                     confidence=confidence,

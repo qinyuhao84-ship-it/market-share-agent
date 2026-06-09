@@ -89,7 +89,7 @@ def test_validate_section_placeholder_text_is_not_treated_as_real_content():
     assert any("占位" in item for item in validated.validation_issues)
 
 
-def test_validate_section_supply_chain_requires_upstream_midstream_downstream():
+def test_validate_section_supply_chain_missing_three_blocks_is_incomplete():
     spec = SECTION_LOOKUP["industry_supply_chain"]
     section = Chapter1SemanticSection(
         section_id="industry_supply_chain",
@@ -97,9 +97,23 @@ def test_validate_section_supply_chain_requires_upstream_midstream_downstream():
         content_blocks=[
             Chapter1ContentBlock(
                 block_id="industry_supply_chain_001",
+                block_type="supply_chain_overview",
+                heading="供应链总述",
+                body=_long_text("行业供应链围绕协同效率、交付质量和供应稳定性展开，上游、中游、下游三个环节共同影响最终落地效果"),
+                source_refs=["source_001"],
+            ),
+            Chapter1ContentBlock(
+                block_id="industry_supply_chain_002",
                 block_type="upstream",
-                heading="供应链概述",
-                body=_long_text("行业供应链围绕协同效率、交付质量和供应稳定性展开，但这里刻意不写上中下游关键词"),
+                heading="上游供应链",
+                body=_long_text("上游主要包括传感设备、扫描采集工具和基础算力资源"),
+                source_refs=["source_002"],
+            ),
+            Chapter1ContentBlock(
+                block_id="industry_supply_chain_003",
+                block_type="midstream",
+                heading="中游制造与集成",
+                body=_long_text("中游主要承担算法训练、软件开发、模型转换和系统集成工作"),
                 source_refs=["source_001"],
             )
         ],
@@ -115,7 +129,9 @@ def test_validate_section_supply_chain_requires_upstream_midstream_downstream():
     validated = validate_section(section, spec)
 
     assert validated.status in {Chapter1SectionStatus.INCOMPLETE, Chapter1SectionStatus.FAILED}
-    assert any("供应链" in item or "上游" in item for item in validated.validation_issues)
+    assert "downstream" in validated.missing_items
+    assert "core_challenges" in validated.missing_items
+    assert "development_direction" in validated.missing_items
 
 
 def test_validate_section_does_not_require_fixed_paragraph_count():

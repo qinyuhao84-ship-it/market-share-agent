@@ -16,6 +16,7 @@ from .models import (
 )
 from .prompt_builder import build_repair_prompt
 from .validators import validate_section
+from .text_polisher import polish_chapter1_paragraph
 
 
 class Chapter1RepairService:
@@ -114,7 +115,12 @@ class Chapter1RepairService:
                 continue
 
             attempt_record["parsed_output"] = copy.deepcopy(parsed)
-            blocks = self._parse_blocks(parsed, section_key=section_key, allowed_block_types=allowed_block_types)
+            blocks = self._parse_blocks(
+                parsed,
+                section_key=section_key,
+                allowed_block_types=allowed_block_types,
+                company_name=company_name,
+            )
             if not blocks:
                 warning = f"{section_title} 第 {attempt} 次补写未返回可用内容块"
                 record["warnings"].append(warning)
@@ -142,12 +148,16 @@ class Chapter1RepairService:
         *,
         section_key: str,
         allowed_block_types: set[str],
+        company_name: str = "",
     ) -> list[Chapter1ContentBlock]:
         blocks: list[Chapter1ContentBlock] = []
         for index, item in enumerate(payload.get("content_blocks") or [], start=1):
             if not isinstance(item, Mapping):
                 continue
-            body = str(item.get("body") or item.get("text") or "").strip()
+            body = polish_chapter1_paragraph(
+                str(item.get("body") or item.get("text") or "").strip(),
+                company_name=company_name,
+            )
             if not body:
                 continue
             block_type = str(item.get("block_type") or item.get("type") or "body").strip() or "body"
@@ -157,7 +167,7 @@ class Chapter1RepairService:
                 Chapter1ContentBlock(
                     block_id=str(item.get("block_id") or f"{section_key}_repair_{index:03d}").strip(),
                     block_type=block_type,
-                    heading=str(item.get("heading") or "").strip(),
+                    heading="",
                     body=body,
                     source_refs=[str(ref).strip() for ref in (item.get("source_refs") or []) if str(ref).strip()],
                     confidence=str(item.get("confidence") or "medium").strip() or "medium",

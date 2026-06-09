@@ -15,10 +15,14 @@ CHAPTER1_TASK_SNAPSHOT_DIR = Path("output/chapter1_tasks")
 MISSING_MARKER_PREFIX = "【待补充："
 MISSING_MARKER_SUFFIX = "】"
 
-CHAPTER1_SECTION_TIMEOUT_SECONDS = 120
-CHAPTER1_REPAIR_TIMEOUT_SECONDS = 120
+CHAPTER1_SECTION_TIMEOUT_SECONDS = 240
+CHAPTER1_REPAIR_TIMEOUT_SECONDS = 240
 CHAPTER1_PROBE_TIMEOUT_SECONDS = 30
-CHAPTER1_REPAIR_ATTEMPT_LIMIT = 1
+CHAPTER1_REPAIR_ATTEMPT_LIMIT = 2
+CHAPTER1_FORBID_COMPANY_NAME_IN_BODY = True
+CHAPTER1_FORBID_QUANTITATIVE_UNCERTAIN_DATA = True
+CHAPTER1_FORBID_COLON_IN_BODY = True
+CHAPTER1_CONSULTING_STYLE = True
 
 SECTION_SPECS = [
     {
@@ -72,8 +76,15 @@ SECTION_SPECS = [
     {
         "key": "industry_supply_chain",
         "title": "行业供应链",
-        "required_block_types": ["upstream", "midstream", "downstream"],
-        "min_body_chars": 220,
+        "required_block_types": [
+            "supply_chain_overview",
+            "upstream",
+            "midstream",
+            "downstream",
+            "core_challenges",
+            "development_direction",
+        ],
+        "min_body_chars": 900,
     },
 ]
 
@@ -87,9 +98,9 @@ SECTION_MAX_TOKENS = {
     "product_attributes": 1800,
     "technical_specifications": 2200,
     "industry_history": 1800,
-    "industry_environment": 2600,
-    "industry_trends": 2600,
-    "industry_supply_chain": 2400,
+    "industry_environment": 3600,
+    "industry_trends": 3600,
+    "industry_supply_chain": 4200,
 }
 
 EXPORTABLE_STATUSES = {"completed", "completed_with_missing"}

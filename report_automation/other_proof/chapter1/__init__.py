@@ -1,10 +1,15 @@
 from .config import (
+    CHAPTER1_CONSULTING_STYLE,
     CHAPTER1_DIRECT_GENERATION_ONLY,
+    CHAPTER1_FORBID_COLON_IN_BODY,
+    CHAPTER1_FORBID_COMPANY_NAME_IN_BODY,
+    CHAPTER1_FORBID_QUANTITATIVE_UNCERTAIN_DATA,
     CHAPTER1_MODEL_MODE,
     CHAPTER1_MODEL_NAME,
     CHAPTER1_PROBE_TIMEOUT_SECONDS,
     CHAPTER1_REASONING_EFFORT,
     CHAPTER1_RESPONSE_FORMAT,
+    CHAPTER1_REPAIR_ATTEMPT_LIMIT,
     CHAPTER1_REPAIR_TIMEOUT_SECONDS,
     CHAPTER1_SECTION_TIMEOUT_SECONDS,
     CHAPTER1_TASK_REPLAY_DIR,
@@ -30,17 +35,23 @@ from .models import (
     Chapter1TaskStatus,
 )
 from .prompt_builder import build_outline_prompt, build_repair_prompt, build_section_prompt
+from .text_polisher import LABEL_PREFIX_PATTERNS, UNCERTAIN_WORDS, polish_chapter1_paragraph, polish_paragraphs
 from .task_service import Chapter1TaskService, chapter1_task_service
 from .task_store import Chapter1TaskStore, chapter1_task_store
 from .validators import validate_draft, validate_section
 
 __all__ = [
+    "CHAPTER1_CONSULTING_STYLE",
     "CHAPTER1_DIRECT_GENERATION_ONLY",
+    "CHAPTER1_FORBID_COLON_IN_BODY",
+    "CHAPTER1_FORBID_COMPANY_NAME_IN_BODY",
+    "CHAPTER1_FORBID_QUANTITATIVE_UNCERTAIN_DATA",
     "CHAPTER1_MODEL_MODE",
     "CHAPTER1_MODEL_NAME",
     "CHAPTER1_PROBE_TIMEOUT_SECONDS",
     "CHAPTER1_REASONING_EFFORT",
     "CHAPTER1_RESPONSE_FORMAT",
+    "CHAPTER1_REPAIR_ATTEMPT_LIMIT",
     "CHAPTER1_REPAIR_TIMEOUT_SECONDS",
     "CHAPTER1_SECTION_TIMEOUT_SECONDS",
     "CHAPTER1_TASK_REPLAY_DIR",
@@ -62,14 +73,18 @@ __all__ = [
     "Chapter1TaskSnapshot",
     "Chapter1TaskStatus",
     "Chapter1TaskService",
+    "LABEL_PREFIX_PATTERNS",
     "build_outline_prompt",
     "build_repair_prompt",
     "build_section_prompt",
     "chapter1_task_service",
     "chapter1_task_store",
     "parse_deepseek_json_object",
+    "polish_chapter1_paragraph",
+    "polish_paragraphs",
     "semantic_draft_to_legacy_sections",
     "Chapter1TaskStore",
+    "UNCERTAIN_WORDS",
     "validate_draft",
     "validate_section",
 ]
