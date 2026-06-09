@@ -122,8 +122,23 @@ def test_create_app_registers_public_routes():
     assert "/other-proof/chapter1" in route_paths
     assert "/other-proof/chapter1-section" in route_paths
     assert "/other-proof/company-lookup" in route_paths
+    assert "/system/debug" in route_paths
     assert "/" in route_paths
     assert "/frontend/{file_path:path}" in route_paths
+
+
+def test_system_debug_endpoint_returns_non_secret_status():
+    client = TestClient(app_module.app)
+
+    resp = client.get("/system/debug")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "ok"
+    assert "llm" in body
+    assert "api_key_present" in body["llm"]
+    assert "api_key" not in body["llm"]
+    assert body["files"]["frontend_index_exists"] is True
 
 
 def test_other_chapter1_endpoint_returns_sections(monkeypatch):
