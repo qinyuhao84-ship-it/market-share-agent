@@ -128,6 +128,7 @@ def test_create_app_registers_public_routes():
     assert "/other-proof/chapter1/tasks/{task_id}/sections/{section_key}/retry" in route_paths
     assert "/other-proof/chapter1/tasks/{task_id}/sections/{section_key}/repair" in route_paths
     assert "/system/debug" in route_paths
+    assert "/system/debug/chapter1-llm-probe" in route_paths
     assert "/" in route_paths
     assert "/frontend/{file_path:path}" in route_paths
 
@@ -143,6 +144,10 @@ def test_system_debug_endpoint_returns_non_secret_status():
     assert "llm" in body
     assert "api_key_present" in body["llm"]
     assert "api_key" not in body["llm"]
+    assert body["chapter1_task"]["model"] == "deepseek-v4-pro"
+    assert body["chapter1_task"]["model_mode"] == "thinking"
+    assert body["chapter1_task"]["direct_generation_only"] is True
+    assert body["chapter1_task"]["local_retrieval"] == "disabled"
     assert body["files"]["frontend_index_exists"] is True
 
 

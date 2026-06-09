@@ -5,6 +5,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from report_automation.other_proof.chapter1 import (
     Chapter1TaskCreateRequest,
     Chapter1TaskNotFoundError,
+    Chapter1TaskStatus,
     chapter1_task_service,
     chapter1_task_store,
 )
@@ -15,7 +16,13 @@ router = APIRouter(prefix="/other-proof/chapter1")
 @router.post("/tasks")
 def create_chapter1_task(payload: Chapter1TaskCreateRequest, background_tasks: BackgroundTasks):
     snapshot = chapter1_task_service.start_task(payload)
-    background_tasks.add_task(chapter1_task_service.run_task, snapshot.task_id)
+    if snapshot.status not in {
+        Chapter1TaskStatus.COMPLETED,
+        Chapter1TaskStatus.COMPLETED_WITH_MISSING,
+        Chapter1TaskStatus.FAILED,
+        Chapter1TaskStatus.CANCELLED,
+    }:
+        background_tasks.add_task(chapter1_task_service.run_task, snapshot.task_id)
     return snapshot
 
 
@@ -49,4 +56,3 @@ def repair_chapter1_section(task_id: str, section_key: str):
         return chapter1_task_service.repair_section(task_id, section_key)
     except Chapter1TaskNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-

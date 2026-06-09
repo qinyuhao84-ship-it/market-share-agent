@@ -386,3 +386,29 @@ def test_openai_client_includes_response_format_in_payload():
     )
 
     assert transport.requests[0]["body"]["response_format"] == {"type": "json_object"}
+
+
+def test_openai_client_includes_reasoning_payload_and_skips_temperature_when_none():
+    transport = MockTransport()
+    client = OpenAICompatibleClient(
+        api_base="https://proxy.example.com/v1",
+        api_key="sk-test",
+        model="gpt-5.1-codex",
+        client=httpx.Client(transport=httpx.MockTransport(transport)),
+    )
+
+    client.complete(
+        [{"role": "user", "content": "json"}],
+        temperature=None,
+        response_format={"type": "json_object"},
+        reasoning_effort="high",
+        extra_body={"thinking": {"type": "enabled"}},
+        section_key="background_overview",
+    )
+
+    payload = transport.requests[0]["body"]
+    assert payload["model"] == "gpt-5.1-codex"
+    assert payload["response_format"] == {"type": "json_object"}
+    assert payload["reasoning_effort"] == "high"
+    assert payload["thinking"] == {"type": "enabled"}
+    assert "temperature" not in payload

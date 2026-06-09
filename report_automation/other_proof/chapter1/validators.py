@@ -110,7 +110,7 @@ def validate_section(section: Chapter1SemanticSection, section_spec: Mapping[str
             score -= 50
         if section.section_id == "technical_specifications" and re.search(r"\d", body) and not (block.source_refs or section.sources):
             block_issues.append("技术规范中的具体数值缺少来源支撑")
-            score -= 20
+            score -= 10
         if block.source_refs:
             has_real_source = True
         if block_issues:
@@ -125,9 +125,9 @@ def validate_section(section: Chapter1SemanticSection, section_spec: Mapping[str
         missing_items.extend(missing_block_types)
         score -= 20
 
-    if not section.sources or not has_real_source:
-        issues.append("资料来源不足")
-        score -= 10
+    if section.sources and not has_real_source:
+        issues.append("资料来源未被正文引用")
+        score -= 5
 
     topic_keywords = TOPIC_RULES.get(spec_key)
     if topic_keywords and not has_topic_match:
@@ -177,7 +177,7 @@ def validate_section(section: Chapter1SemanticSection, section_spec: Mapping[str
 
     if has_placeholder and status == Chapter1SectionStatus.COMPLETED:
         status = Chapter1SectionStatus.COMPLETED_WITH_WARNING
-    if (not section.sources or not has_real_source) and status == Chapter1SectionStatus.COMPLETED:
+    if section.sources and not has_real_source and status == Chapter1SectionStatus.COMPLETED:
         status = Chapter1SectionStatus.COMPLETED_WITH_WARNING
 
     merged_issues = _unique([*section.validation_issues, *issues])

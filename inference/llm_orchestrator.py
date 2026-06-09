@@ -126,22 +126,29 @@ class OpenAICompatibleClient:
         messages: Sequence[Dict[str, str]],
         *,
         model: Optional[str] = None,
-        temperature: float = 0.0,
+        temperature: Optional[float] = 0.0,
         max_output_tokens: Optional[int] = None,
         timeout_seconds: Optional[int] = None,
         retry_max_attempts: Optional[int] = None,
         section_key: str = "",
         response_format: Optional[Dict[str, Any]] = None,
+        reasoning_effort: Optional[str] = None,
+        extra_body: Optional[Dict[str, Any]] = None,
     ) -> str:
         payload = {
             "model": model or self.model,
             "messages": list(messages),
-            "temperature": temperature,
         }
+        if temperature is not None:
+            payload["temperature"] = temperature
         if max_output_tokens is not None:
             payload["max_tokens"] = max_output_tokens
         if response_format is not None:
             payload["response_format"] = response_format
+        if reasoning_effort:
+            payload["reasoning_effort"] = reasoning_effort
+        if extra_body:
+            payload.update(extra_body)
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",

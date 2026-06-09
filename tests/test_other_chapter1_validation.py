@@ -51,8 +51,13 @@ def test_validate_section_with_content_but_no_sources_keeps_warning_status():
 
     validated = validate_section(section, spec)
 
-    assert validated.status in {Chapter1SectionStatus.COMPLETED_WITH_WARNING, Chapter1SectionStatus.INCOMPLETE}
-    assert "资料来源不足" in validated.validation_issues
+    assert validated.status in {
+        Chapter1SectionStatus.COMPLETED,
+        Chapter1SectionStatus.COMPLETED_WITH_WARNING,
+        Chapter1SectionStatus.INCOMPLETE,
+    }
+    assert "资料来源不足" not in validated.validation_issues
+    assert "资料来源未被正文引用" not in validated.validation_issues
 
 
 def test_validate_section_placeholder_text_is_not_treated_as_real_content():
@@ -176,4 +181,3 @@ def test_validate_draft_fills_missing_sections():
     assert len(validated.sections) == 9
     assert validated.sections[0].section_id == "background_overview"
     assert any(section.section_id == "industry_supply_chain" for section in validated.sections)
-

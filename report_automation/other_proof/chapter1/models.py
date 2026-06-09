@@ -35,7 +35,7 @@ class Chapter1TaskCreateRequest(BaseModel):
     company_name: str = ""
     product_name: str = Field(..., min_length=1)
     use_cache: bool = True
-    enable_web_retrieval: bool = True
+    enable_web_retrieval: bool = False
     allow_incomplete_export: bool = True
     generation_mode: Literal["balanced", "strict", "fast"] = "balanced"
     model_name: str = Field(default=CHAPTER1_MODEL_NAME)
@@ -110,7 +110,7 @@ class Chapter1TaskSnapshot(BaseModel):
     model_mode: str = Field(default=CHAPTER1_MODEL_MODE)
     generation_mode: str = "balanced"
     use_cache: bool = True
-    enable_web_retrieval: bool = True
+    enable_web_retrieval: bool = False
     allow_incomplete_export: bool = True
     semantic_draft: Optional[Chapter1SemanticDraft] = None
     legacy_sections: List[dict] = Field(default_factory=list)
@@ -127,6 +127,7 @@ class Chapter1TaskSnapshot(BaseModel):
     raw_model_outputs: List[Dict[str, Any]] = Field(default_factory=list)
     parsed_outputs: List[Dict[str, Any]] = Field(default_factory=list)
     validation_results: List[Dict[str, Any]] = Field(default_factory=list)
+    diagnostics: Dict[str, Any] = Field(default_factory=dict)
 
 
 class Chapter1TaskError(RuntimeError):
@@ -135,4 +136,3 @@ class Chapter1TaskError(RuntimeError):
 
 class Chapter1TaskNotFoundError(Chapter1TaskError):
     pass
-

@@ -60,6 +60,7 @@
         if (!spec || seenKeys.has(key)) return true;
         seenKeys.add(key);
         const paragraphs = Array.isArray(section.paragraphs) ? section.paragraphs : [];
+        if (!paragraphs.length) return true;
         for (const item of paragraphs) {
           const text = String(item || "").trim();
           if (!text || text === CHAPTER1_PLACEHOLDER_TEXT || text.startsWith("该部分生成失败")) return true;
@@ -1431,10 +1432,10 @@
               company_name: companyName,
               product_name: product,
               use_cache: !force,
-              enable_web_retrieval: true,
+              enable_web_retrieval: false,
               allow_incomplete_export: allowPartial,
               generation_mode: "balanced",
-              model_name: "deepseek-v4-flash",
+              model_name: ReportAutomationChapter1Config.modelName || "deepseek-v4-pro",
             }),
           });
         } catch (err) {
@@ -1542,7 +1543,7 @@
         const progress = Number(snapshot.progress || 0);
         const currentSection = String(snapshot.current_section || "").trim();
         const currentStage = String(snapshot.current_stage || "").trim();
-        const modelName = String(snapshot.model_name || "deepseek-v4-flash").trim();
+        const modelName = String(snapshot.model_name || ReportAutomationChapter1Config.modelName || "deepseek-v4-pro").trim();
         updateChapter1State(
           `第一章：${progress}%${currentSection ? `｜${currentSection}` : ""}${currentStage ? `｜${currentStage}` : ""}`
         );

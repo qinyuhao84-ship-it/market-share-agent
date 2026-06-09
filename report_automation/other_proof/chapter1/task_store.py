@@ -39,7 +39,7 @@ class Chapter1TaskStore:
             model_mode=CHAPTER1_MODEL_MODE,
             generation_mode=str(request.generation_mode or "balanced"),
             use_cache=bool(request.use_cache),
-            enable_web_retrieval=bool(request.enable_web_retrieval),
+            enable_web_retrieval=False,
             allow_incomplete_export=bool(request.allow_incomplete_export),
             created_at=now,
             updated_at=now,

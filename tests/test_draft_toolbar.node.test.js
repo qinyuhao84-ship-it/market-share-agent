@@ -76,9 +76,11 @@ test('按钮交互增强：状态机、防连点、快捷键', () => {
 });
 
 test('第一章按企业缓存：版本草稿会保存并恢复第一章', () => {
-  assert.match(source, /cacheKey: "report_other_chapter1_by_company_v2"/);
+  assert.match(source, /cacheKey: "report_other_chapter1_by_company_v3_deepseek_v4_pro"/);
   assert.match(source, /schemaVersion: "chapter1_semantic_v1"/);
-  assert.match(source, /modelName: "deepseek-v4-flash"/);
+  assert.match(source, /modelName: "deepseek-v4-pro"/);
+  assert.match(source, /modelMode: "thinking"/);
+  assert.match(source, /directGenerationOnly: true/);
   assert.match(source, /const OTHER_CHAPTER1_CACHE_KEY = ReportAutomationChapter1Config\.cacheKey/);
   assert.match(source, /function chapter1SectionsContainPlaceholder\(sections\) \{/);
   assert.doesNotMatch(source, /if \(paragraphs\.length < spec\.slot_count\) return true;/);
@@ -163,6 +165,7 @@ test('他证第一章部分失败时继续导出并显示回放路径', () => {
   assert.match(source, /fetch\(`\/other-proof\/chapter1\/tasks\/\$\{encodeURIComponent\(taskId\)\}\/cancel`/);
   assert.match(source, /signal: otherChapter1AbortController\.signal/);
   assert.match(source, /allow_incomplete_export:\s*allowPartial/);
+  assert.match(source, /enable_web_retrieval:\s*false/);
   assert.match(source, /formatApiErrorDetail\(err, chapter1RetryTip\)/);
   assert.match(source, /调试回放文件/);
   assert.match(source, /const chapter1Ready = await ensureOtherChapter1\(false,\s*true\);/);

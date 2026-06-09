@@ -5,8 +5,8 @@ from typing import Any, Mapping, Sequence
 
 from inference import InferenceConfig
 
-from .config import CHAPTER1_REPAIR_ATTEMPT_LIMIT, CHAPTER1_SECTION_TIMEOUT_SECONDS, SECTION_MAX_TOKENS
-from .deepseek_client import Chapter1LLMError, Chapter1LLMUnavailableError, DeepSeekV4FlashChapter1Client
+from .config import CHAPTER1_REPAIR_ATTEMPT_LIMIT, CHAPTER1_REPAIR_TIMEOUT_SECONDS, SECTION_MAX_TOKENS
+from .deepseek_client import Chapter1LLMError, Chapter1LLMUnavailableError, DeepSeekV4ProChapter1Client
 from .json_parser import Chapter1ParseError, parse_deepseek_json_object
 from .models import (
     Chapter1ContentBlock,
@@ -21,11 +21,11 @@ from .validators import validate_section
 class Chapter1RepairService:
     def __init__(
         self,
-        client: DeepSeekV4FlashChapter1Client | None = None,
+        client: DeepSeekV4ProChapter1Client | None = None,
         config: InferenceConfig | None = None,
     ) -> None:
         self.config = config or InferenceConfig()
-        self.client = client or DeepSeekV4FlashChapter1Client(self.config)
+        self.client = client or DeepSeekV4ProChapter1Client(self.config)
         self.last_record: dict[str, Any] = {}
 
     def repair_section(
@@ -96,7 +96,7 @@ class Chapter1RepairService:
                     messages=messages,
                     section_key=section_key,
                     max_output_tokens=max_output_tokens,
-                    timeout_seconds=CHAPTER1_SECTION_TIMEOUT_SECONDS,
+                    timeout_seconds=CHAPTER1_REPAIR_TIMEOUT_SECONDS,
                     retry_max_attempts=1,
                 )
             except (Chapter1LLMUnavailableError, Chapter1LLMError) as exc:
@@ -195,4 +195,3 @@ def _unique(items: Sequence[str]) -> list[str]:
             continue
         result.append(text)
     return result
-

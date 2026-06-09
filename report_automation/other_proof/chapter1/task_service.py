@@ -2,21 +2,19 @@ from __future__ import annotations
 
 import copy
 import threading
-import uuid
 from typing import Any, Iterable, Sequence
 
 from inference import InferenceConfig
 
 from .config import (
+    CHAPTER1_DIRECT_GENERATION_ONLY,
     CHAPTER1_MODEL_MODE,
     CHAPTER1_MODEL_NAME,
-    EXPORTABLE_STATUSES,
     SECTION_LOOKUP,
-    SECTION_ORDER,
     SECTION_SPECS,
     TASK_TERMINAL_STATUSES,
 )
-from .deepseek_client import DeepSeekV4FlashChapter1Client
+from .deepseek_client import DeepSeekV4ProChapter1Client
 from .legacy_adapter import semantic_draft_to_legacy_sections
 from .models import (
     Chapter1SemanticDraft,
@@ -28,7 +26,6 @@ from .models import (
 )
 from .repair_service import Chapter1RepairService
 from .replay_writer import Chapter1ReplayWriter
-from .retrieval_service import Chapter1RetrievalService
 from .section_generator import Chapter1SectionGenerator
 from .task_store import Chapter1TaskNotFoundError, chapter1_task_store
 from .validators import validate_draft, validate_section
@@ -41,16 +38,22 @@ class Chapter1TaskService:
         self._result_cache: dict[str, Chapter1TaskSnapshot] = {}
 
     def start_task(self, request: Chapter1TaskCreateRequest) -> Chapter1TaskSnapshot:
-        normalized_request = request.model_copy(update={"model_name": CHAPTER1_MODEL_NAME})
+        normalized_request = request.model_copy(
+            update={
+                "model_name": CHAPTER1_MODEL_NAME,
+                "enable_web_retrieval": False,
+            }
+        )
         snapshot = self.store.create(normalized_request)
         snapshot.model_name = CHAPTER1_MODEL_NAME
         snapshot.model_mode = CHAPTER1_MODEL_MODE
         snapshot.generation_mode = normalized_request.generation_mode
         snapshot.use_cache = bool(normalized_request.use_cache)
-        snapshot.enable_web_retrieval = bool(normalized_request.enable_web_retrieval)
+        snapshot.enable_web_retrieval = False
         snapshot.allow_incomplete_export = bool(normalized_request.allow_incomplete_export)
         snapshot.current_stage = "已排队"
         snapshot.updated_at = snapshot.created_at
+        snapshot.diagnostics = self._build_diagnostics()
         snapshot = self.store.save_snapshot(snapshot)
 
         if normalized_request.use_cache:
@@ -64,16 +67,21 @@ class Chapter1TaskService:
 
     def run_task(self, task_id: str) -> None:
         try:
+            self._run_task_inner(task_id)
+        except Exception as exc:  # pragma: no cover - defensive
+            self._mark_task_failed_by_exception(task_id, exc)
+
+    def _run_task_inner(self, task_id: str) -> None:
+        try:
             snapshot = self.store.get(task_id)
         except Chapter1TaskNotFoundError:
             return
 
-        if snapshot.status in TASK_TERMINAL_STATUSES and snapshot.status != Chapter1TaskStatus.QUEUED:
+        if snapshot.status.value in TASK_TERMINAL_STATUSES and snapshot.status != Chapter1TaskStatus.QUEUED:
             return
 
         snapshot = self._set_running(snapshot)
         draft_sections: list[Chapter1SemanticSection] = []
-        retrieval_records: list[dict[str, Any]] = []
         generation_records: list[dict[str, Any]] = []
         repair_records: list[dict[str, Any]] = []
         raw_model_outputs: list[dict[str, Any]] = []
@@ -82,7 +90,6 @@ class Chapter1TaskService:
         warnings = list(snapshot.warnings or [])
         errors = list(snapshot.errors or [])
 
-        retrieval_service = self._new_retrieval_service()
         section_generator = self._new_section_generator()
         repair_service = self._new_repair_service()
 
@@ -100,50 +107,19 @@ class Chapter1TaskService:
             section_key = str(spec["key"])
             section_title = str(spec["title"])
             snapshot.current_section = section_title
-            snapshot.current_stage = "资料检索"
-            snapshot.progress = max(snapshot.progress, int(((index - 1) / total) * 100))
+            base_progress = int(((index - 1) / total) * 100)
+            snapshot.current_stage = "准备生成"
+            snapshot.progress = max(snapshot.progress, base_progress, 1 if index == 1 else base_progress)
             snapshot.updated_at = _now()
             self.store.save_snapshot(snapshot)
 
             section_warnings: list[str] = []
             section_errors: list[str] = []
-            sources = []
-            if snapshot.enable_web_retrieval:
-                try:
-                    sources = retrieval_service.retrieve_for_section(
-                        product_name=snapshot.product_name,
-                        section_key=section_key,
-                        section_title=section_title,
-                    )
-                    retrieval_records.append(copy.deepcopy(retrieval_service.last_record))
-                    section_warnings.extend(retrieval_service.last_record.get("warnings", []))
-                except Exception as exc:  # pragma: no cover - defensive
-                    warning = f"{section_title} 检索失败：{exc}"
-                    section_warnings.append(warning)
-                    retrieval_records.append(
-                        {
-                            "section_key": section_key,
-                            "section_title": section_title,
-                            "error": str(exc),
-                            "sources": [],
-                            "warnings": [warning],
-                        }
-                    )
-                    sources = []
-            else:
-                warning = f"{section_title} 已关闭联网检索"
-                section_warnings.append(warning)
-                retrieval_records.append(
-                    {
-                        "section_key": section_key,
-                        "section_title": section_title,
-                        "queries": [],
-                        "sources": [],
-                        "warnings": [warning],
-                    }
-                )
+            sources: list[Any] = []
+            section_warnings.append(f"{section_title}：已跳过本地联网检索，直接调用 DeepSeek-V4-Pro Thinking 生成。")
 
-            snapshot.current_stage = "正文生成"
+            snapshot.current_stage = "DeepSeek 生成"
+            snapshot.progress = max(snapshot.progress, base_progress + 3)
             snapshot.updated_at = _now()
             self.store.save_snapshot(snapshot)
             try:
@@ -229,7 +205,7 @@ class Chapter1TaskService:
                     section_spec=dict(spec),
                     product_name=snapshot.product_name,
                     company_name=snapshot.company_name,
-                    sources=list(sources),
+                    sources=sources,
                 )
                 repair_records.append(copy.deepcopy(repair_service.last_record))
                 section_warnings.extend(repair_service.last_record.get("warnings", []))
@@ -273,7 +249,7 @@ class Chapter1TaskService:
 
         snapshot.semantic_draft = draft
         snapshot.legacy_sections = legacy_sections
-        snapshot.retrieval_records = retrieval_records
+        snapshot.retrieval_records = []
         snapshot.generation_records = generation_records
         snapshot.repair_records = repair_records
         snapshot.raw_model_outputs = raw_model_outputs
@@ -281,6 +257,7 @@ class Chapter1TaskService:
         snapshot.validation_results = validation_results
         snapshot.warnings = _unique([*warnings, *draft.warnings])
         snapshot.errors = _unique(errors)
+        snapshot.diagnostics = self._build_diagnostics()
         snapshot.progress = 100
         snapshot.current_section = ""
         snapshot.current_stage = "整理输出"
@@ -332,16 +309,9 @@ class Chapter1TaskService:
             if str(item.section_id or "").strip() != section_key
         ]
 
-        retrieval_service = self._new_retrieval_service()
         section_generator = self._new_section_generator()
         repair_service = self._new_repair_service()
-        sources = []
-        if snapshot.enable_web_retrieval:
-            sources = retrieval_service.retrieve_for_section(
-                product_name=snapshot.product_name,
-                section_key=section_key,
-                section_title=str(spec["title"]),
-            )
+        sources: list[Any] = []
 
         section = section_generator.generate_section(
             company_name=snapshot.company_name,
@@ -358,7 +328,7 @@ class Chapter1TaskService:
                 section_spec=dict(spec),
                 product_name=snapshot.product_name,
                 company_name=snapshot.company_name,
-                sources=list(sources),
+                sources=sources,
             )
 
         updated_sections = []
@@ -372,7 +342,6 @@ class Chapter1TaskService:
             snapshot.semantic_draft.model_copy(update={"sections": updated_sections})
         )
         snapshot.legacy_sections = semantic_draft_to_legacy_sections(snapshot.semantic_draft)
-        snapshot.retrieval_records.append(copy.deepcopy(retrieval_service.last_record))
         snapshot.generation_records.append(copy.deepcopy(section_generator.last_record))
         if repair_service.last_record:
             snapshot.repair_records.append(copy.deepcopy(repair_service.last_record))
@@ -399,7 +368,8 @@ class Chapter1TaskService:
                 "missing_items": list(section.missing_items or []),
             }
         )
-        snapshot.warnings = _unique([*snapshot.warnings, *retrieval_service.warnings, *section.warnings])
+        snapshot.warnings = _unique([*snapshot.warnings, *section.warnings])
+        snapshot.diagnostics = self._build_diagnostics()
         snapshot.replay_file_path = self._new_replay_writer().write(snapshot)
         if snapshot.semantic_draft is not None:
             snapshot.semantic_draft.replay_file_path = snapshot.replay_file_path
@@ -432,19 +402,14 @@ class Chapter1TaskService:
         if section is None:
             raise Chapter1TaskNotFoundError("小节不存在")
 
-        retrieval_service = self._new_retrieval_service()
-        sources = retrieval_service.retrieve_for_section(
-            product_name=snapshot.product_name,
-            section_key=section_key,
-            section_title=str(spec["title"]),
-        )
+        sources: list[Any] = []
         repair_service = self._new_repair_service()
         repaired = repair_service.repair_section(
             section=section,
             section_spec=dict(spec),
             product_name=snapshot.product_name,
             company_name=snapshot.company_name,
-            sources=list(sources),
+            sources=sources,
         )
 
         updated_sections = []
@@ -456,7 +421,6 @@ class Chapter1TaskService:
 
         snapshot.semantic_draft = validate_draft(snapshot.semantic_draft.model_copy(update={"sections": updated_sections}))
         snapshot.legacy_sections = semantic_draft_to_legacy_sections(snapshot.semantic_draft)
-        snapshot.retrieval_records.append(copy.deepcopy(retrieval_service.last_record))
         if repair_service.last_record:
             snapshot.repair_records.append(copy.deepcopy(repair_service.last_record))
         snapshot.validation_results.append(
@@ -470,7 +434,8 @@ class Chapter1TaskService:
                 "repair_only": True,
             }
         )
-        snapshot.warnings = _unique([*snapshot.warnings, *retrieval_service.warnings, *repaired.warnings])
+        snapshot.warnings = _unique([*snapshot.warnings, *repaired.warnings])
+        snapshot.diagnostics = self._build_diagnostics()
         snapshot.replay_file_path = self._new_replay_writer().write(snapshot)
         if snapshot.semantic_draft is not None:
             snapshot.semantic_draft.replay_file_path = snapshot.replay_file_path
@@ -491,6 +456,7 @@ class Chapter1TaskService:
         snapshot.status = Chapter1TaskStatus.RUNNING
         snapshot.current_stage = "开始生成"
         snapshot.progress = 0
+        snapshot.diagnostics = self._build_diagnostics()
         snapshot.updated_at = _now()
         return self.store.save_snapshot(snapshot)
 
@@ -504,16 +470,13 @@ class Chapter1TaskService:
     def _new_config(self) -> InferenceConfig:
         return InferenceConfig()
 
-    def _new_retrieval_service(self) -> Chapter1RetrievalService:
-        return Chapter1RetrievalService(self._new_config())
-
     def _new_section_generator(self) -> Chapter1SectionGenerator:
         config = self._new_config()
-        return Chapter1SectionGenerator(DeepSeekV4FlashChapter1Client(config), config)
+        return Chapter1SectionGenerator(DeepSeekV4ProChapter1Client(config), config)
 
     def _new_repair_service(self) -> Chapter1RepairService:
         config = self._new_config()
-        return Chapter1RepairService(DeepSeekV4FlashChapter1Client(config), config)
+        return Chapter1RepairService(DeepSeekV4ProChapter1Client(config), config)
 
     def _new_replay_writer(self) -> Chapter1ReplayWriter:
         return Chapter1ReplayWriter()
@@ -524,9 +487,8 @@ class Chapter1TaskService:
                 str(request.company_name or "").strip().lower(),
                 str(request.product_name or "").strip().lower(),
                 CHAPTER1_MODEL_NAME,
+                CHAPTER1_MODEL_MODE,
                 str(request.generation_mode or "balanced"),
-                "cache" if request.use_cache else "nocache",
-                "web" if request.enable_web_retrieval else "noweb",
                 "allow" if request.allow_incomplete_export else "strict",
             ]
         )
@@ -544,7 +506,7 @@ class Chapter1TaskService:
             company_name=snapshot.company_name,
             product_name=snapshot.product_name,
             use_cache=snapshot.use_cache,
-            enable_web_retrieval=snapshot.enable_web_retrieval,
+            enable_web_retrieval=False,
             allow_incomplete_export=snapshot.allow_incomplete_export,
             generation_mode=snapshot.generation_mode if snapshot.generation_mode in {"balanced", "strict", "fast"} else "balanced",
             model_name=snapshot.model_name,
@@ -567,19 +529,55 @@ class Chapter1TaskService:
         cloned.model_mode = CHAPTER1_MODEL_MODE
         cloned.generation_mode = str(request.generation_mode or "balanced")
         cloned.use_cache = bool(request.use_cache)
-        cloned.enable_web_retrieval = bool(request.enable_web_retrieval)
+        cloned.enable_web_retrieval = False
         cloned.allow_incomplete_export = bool(request.allow_incomplete_export)
         cloned.status = cached.status
         cloned.cancelled = False
         cloned.created_at = _now()
         cloned.updated_at = cloned.created_at
         cloned.progress = 100 if cloned.can_export else cloned.progress
+        cloned.diagnostics = self._build_diagnostics()
         if cloned.semantic_draft is not None:
             cloned.semantic_draft.task_id = task_id
             cloned.semantic_draft.model_name = CHAPTER1_MODEL_NAME
             cloned.semantic_draft.model_mode = CHAPTER1_MODEL_MODE
             cloned.semantic_draft.draft_id = f"{task_id}-draft"
         return cloned
+
+    def _build_diagnostics(self) -> dict[str, Any]:
+        return {
+            "model_name": CHAPTER1_MODEL_NAME,
+            "model_mode": CHAPTER1_MODEL_MODE,
+            "direct_generation_only": CHAPTER1_DIRECT_GENERATION_ONLY,
+            "local_retrieval": "disabled",
+            "web_retrieval_disabled": True,
+        }
+
+    def _mark_task_failed_by_exception(self, task_id: str, exc: Exception) -> None:
+        try:
+            snapshot = self.store.get(task_id)
+        except Chapter1TaskNotFoundError:
+            return
+
+        error_text = f"{exc.__class__.__name__}: {exc}"
+        snapshot.status = Chapter1TaskStatus.FAILED
+        snapshot.current_stage = "任务异常失败"
+        snapshot.current_section = ""
+        snapshot.errors = _unique([*snapshot.errors, error_text])
+        snapshot.warnings = _unique([*snapshot.warnings, f"第一章任务异常失败：{error_text}"])
+        snapshot.can_export = bool(snapshot.legacy_sections)
+        snapshot.diagnostics = self._build_diagnostics()
+        snapshot.updated_at = _now()
+
+        try:
+            replay_writer = self._new_replay_writer()
+            snapshot.replay_file_path = replay_writer.write(snapshot)
+            if snapshot.semantic_draft is not None:
+                snapshot.semantic_draft.replay_file_path = snapshot.replay_file_path
+        except Exception:
+            pass
+
+        self.store.save_snapshot(snapshot)
 
 
 def _needs_repair(section: Chapter1SemanticSection) -> bool:

@@ -1,8 +1,10 @@
 (function (root) {
   root.ReportAutomationChapter1Config = {
-    cacheKey: "report_other_chapter1_by_company_v2",
+    cacheKey: "report_other_chapter1_by_company_v3_deepseek_v4_pro",
     schemaVersion: "chapter1_semantic_v1",
-    modelName: "deepseek-v4-flash",
+    modelName: "deepseek-v4-pro",
+    modelMode: "thinking",
+    directGenerationOnly: true,
     placeholderText: "该部分生成失败，请人工补充。",
     sectionSpecs: [
       { key: "background_overview", title: "背景与概述", slot_count: 4 },

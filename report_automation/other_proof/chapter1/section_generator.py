@@ -6,7 +6,7 @@ from typing import Any, Mapping, Sequence
 from inference import InferenceConfig
 
 from .config import CHAPTER1_SECTION_TIMEOUT_SECONDS, SECTION_MAX_TOKENS
-from .deepseek_client import Chapter1LLMError, Chapter1LLMUnavailableError, DeepSeekV4FlashChapter1Client
+from .deepseek_client import Chapter1LLMError, Chapter1LLMUnavailableError, DeepSeekV4ProChapter1Client
 from .json_parser import Chapter1ParseError, parse_deepseek_json_object
 from .models import (
     Chapter1ContentBlock,
@@ -20,11 +20,11 @@ from .prompt_builder import build_section_prompt
 class Chapter1SectionGenerator:
     def __init__(
         self,
-        client: DeepSeekV4FlashChapter1Client | None = None,
+        client: DeepSeekV4ProChapter1Client | None = None,
         config: InferenceConfig | None = None,
     ) -> None:
         self.config = config or InferenceConfig()
-        self.client = client or DeepSeekV4FlashChapter1Client(self.config)
+        self.client = client or DeepSeekV4ProChapter1Client(self.config)
         self.last_raw_output: str = ""
         self.last_parsed_output: dict[str, Any] = {}
         self.last_messages: list[dict[str, str]] = []

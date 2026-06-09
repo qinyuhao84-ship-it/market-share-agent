@@ -47,10 +47,17 @@ def test_create_task_api_returns_task_id_and_get_returns_legacy_sections(monkeyp
             model_mode=CHAPTER1_MODEL_MODE,
             generation_mode=payload.generation_mode,
             use_cache=payload.use_cache,
-            enable_web_retrieval=payload.enable_web_retrieval,
+            enable_web_retrieval=False,
             allow_incomplete_export=payload.allow_incomplete_export,
             created_at="2026-06-09T00:00:00",
             updated_at="2026-06-09T00:00:00",
+            diagnostics={
+                "model_name": CHAPTER1_MODEL_NAME,
+                "model_mode": CHAPTER1_MODEL_MODE,
+                "direct_generation_only": True,
+                "local_retrieval": "disabled",
+                "web_retrieval_disabled": True,
+            },
         )
         chapter1_task_store.save_snapshot(snapshot)
         return snapshot
@@ -92,6 +99,13 @@ def test_create_task_api_returns_task_id_and_get_returns_legacy_sections(monkeyp
         snapshot.warnings = ["资料来源不足"]
         snapshot.replay_file_path = str((replay_writer_module.CHAPTER1_TASK_REPLAY_DIR / "task-001.json").resolve())
         snapshot.semantic_draft.replay_file_path = snapshot.replay_file_path
+        snapshot.diagnostics = {
+            "model_name": CHAPTER1_MODEL_NAME,
+            "model_mode": CHAPTER1_MODEL_MODE,
+            "direct_generation_only": True,
+            "local_retrieval": "disabled",
+            "web_retrieval_disabled": True,
+        }
         chapter1_task_store.save_snapshot(snapshot)
 
     monkeypatch.setattr(task_service_module.chapter1_task_service, "start_task", fake_start_task)
@@ -106,7 +120,7 @@ def test_create_task_api_returns_task_id_and_get_returns_legacy_sections(monkeyp
             "enable_web_retrieval": True,
             "allow_incomplete_export": True,
             "generation_mode": "balanced",
-            "model_name": "deepseek-v4-flash",
+            "model_name": "deepseek-v4-pro",
         },
     )
 
@@ -114,6 +128,8 @@ def test_create_task_api_returns_task_id_and_get_returns_legacy_sections(monkeyp
     body = resp.json()
     assert body["task_id"] == "task-001"
     assert body["model_name"] == CHAPTER1_MODEL_NAME
+    assert body["enable_web_retrieval"] is False
+    assert body["diagnostics"]["direct_generation_only"] is True
 
     task_resp = client.get("/other-proof/chapter1/tasks/task-001")
     assert task_resp.status_code == 200
@@ -122,6 +138,7 @@ def test_create_task_api_returns_task_id_and_get_returns_legacy_sections(monkeyp
     assert snapshot["can_export"] is True
     assert snapshot["legacy_sections"][0]["key"] == "background_overview"
     assert snapshot["legacy_sections"][0]["paragraphs"][0].startswith("概述：")
+    assert snapshot["diagnostics"]["local_retrieval"] == "disabled"
 
 
 def test_cancel_task_api_sets_cancelled_status():

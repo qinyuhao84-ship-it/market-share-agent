@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-CHAPTER1_MODEL_NAME = "deepseek-v4-flash"
-CHAPTER1_MODEL_MODE = "non-thinking"
+CHAPTER1_MODEL_NAME = "deepseek-v4-pro"
+CHAPTER1_MODEL_MODE = "thinking"
 CHAPTER1_RESPONSE_FORMAT = {"type": "json_object"}
+CHAPTER1_THINKING_CONFIG = {"thinking": {"type": "enabled"}}
+CHAPTER1_REASONING_EFFORT = "high"
+CHAPTER1_DIRECT_GENERATION_ONLY = True
 
 CHAPTER1_TASK_REPLAY_DIR = Path("output/chapter1_replays")
 CHAPTER1_TASK_SNAPSHOT_DIR = Path("output/chapter1_tasks")
@@ -12,8 +15,10 @@ CHAPTER1_TASK_SNAPSHOT_DIR = Path("output/chapter1_tasks")
 MISSING_MARKER_PREFIX = "【待补充："
 MISSING_MARKER_SUFFIX = "】"
 
-CHAPTER1_SECTION_TIMEOUT_SECONDS = 180
-CHAPTER1_REPAIR_ATTEMPT_LIMIT = 2
+CHAPTER1_SECTION_TIMEOUT_SECONDS = 120
+CHAPTER1_REPAIR_TIMEOUT_SECONDS = 120
+CHAPTER1_PROBE_TIMEOUT_SECONDS = 30
+CHAPTER1_REPAIR_ATTEMPT_LIMIT = 1
 
 SECTION_SPECS = [
     {
@@ -74,18 +79,6 @@ SECTION_SPECS = [
 
 SECTION_LOOKUP = {item["key"]: item for item in SECTION_SPECS}
 SECTION_ORDER = [item["key"] for item in SECTION_SPECS]
-
-SECTION_QUERY_TEMPLATES = {
-    "background_overview": ["{product_name} 行业 应用", "{product_name} 产品 概述"],
-    "definition": ["{product_name} 定义", "{product_name} 标准 术语"],
-    "working_principle": ["{product_name} 工作原理", "{product_name} 技术方案"],
-    "product_attributes": ["{product_name} 产品特点", "{product_name} 应用场景"],
-    "technical_specifications": ["{product_name} 技术参数", "{product_name} 技术指标 标准"],
-    "industry_history": ["{product_name} 行业 发展历程"],
-    "industry_environment": ["{product_name} 行业 政策 市场 技术"],
-    "industry_trends": ["{product_name} 行业 发展趋势"],
-    "industry_supply_chain": ["{product_name} 产业链 上游 下游"],
-}
 
 SECTION_MAX_TOKENS = {
     "background_overview": 1800,

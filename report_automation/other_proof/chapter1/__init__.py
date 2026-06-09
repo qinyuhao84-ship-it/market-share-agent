@@ -1,15 +1,19 @@
 from .config import (
+    CHAPTER1_DIRECT_GENERATION_ONLY,
     CHAPTER1_MODEL_MODE,
     CHAPTER1_MODEL_NAME,
+    CHAPTER1_PROBE_TIMEOUT_SECONDS,
+    CHAPTER1_REASONING_EFFORT,
     CHAPTER1_RESPONSE_FORMAT,
+    CHAPTER1_REPAIR_TIMEOUT_SECONDS,
     CHAPTER1_SECTION_TIMEOUT_SECONDS,
     CHAPTER1_TASK_REPLAY_DIR,
     CHAPTER1_TASK_SNAPSHOT_DIR,
     MISSING_MARKER_PREFIX,
     SECTION_LOOKUP,
     SECTION_MAX_TOKENS,
-    SECTION_QUERY_TEMPLATES,
     SECTION_SPECS,
+    CHAPTER1_THINKING_CONFIG,
 )
 from .json_parser import Chapter1ParseError, parse_deepseek_json_object
 from .legacy_adapter import semantic_draft_to_legacy_sections
@@ -31,17 +35,21 @@ from .task_store import Chapter1TaskStore, chapter1_task_store
 from .validators import validate_draft, validate_section
 
 __all__ = [
+    "CHAPTER1_DIRECT_GENERATION_ONLY",
     "CHAPTER1_MODEL_MODE",
     "CHAPTER1_MODEL_NAME",
+    "CHAPTER1_PROBE_TIMEOUT_SECONDS",
+    "CHAPTER1_REASONING_EFFORT",
     "CHAPTER1_RESPONSE_FORMAT",
+    "CHAPTER1_REPAIR_TIMEOUT_SECONDS",
     "CHAPTER1_SECTION_TIMEOUT_SECONDS",
     "CHAPTER1_TASK_REPLAY_DIR",
     "CHAPTER1_TASK_SNAPSHOT_DIR",
     "MISSING_MARKER_PREFIX",
     "SECTION_LOOKUP",
     "SECTION_MAX_TOKENS",
-    "SECTION_QUERY_TEMPLATES",
     "SECTION_SPECS",
+    "CHAPTER1_THINKING_CONFIG",
     "Chapter1ContentBlock",
     "Chapter1ParseError",
     "Chapter1SemanticDraft",
