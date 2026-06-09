@@ -57,7 +57,8 @@ def test_deepseek_client_uses_thinking_payload(monkeypatch):
     assert client.last_request["response_format"] == {"type": "json_object"}
     assert client.last_request["reasoning_effort"] == "high"
     assert client.last_request["thinking"] == {"type": "enabled"}
-    assert fake_client.calls[0]["kwargs"]["temperature"] is None
+    assert client.last_request["temperature"] == 0.2
+    assert fake_client.calls[0]["kwargs"]["temperature"] == 0.2
     assert fake_client.calls[0]["kwargs"]["reasoning_effort"] == "high"
     assert fake_client.calls[0]["kwargs"]["extra_body"] == {"thinking": {"type": "enabled"}}
     assert fake_client.calls[0]["kwargs"]["response_format"] == {"type": "json_object"}

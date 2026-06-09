@@ -10,11 +10,12 @@ from .deepseek_client import Chapter1LLMError, Chapter1LLMUnavailableError, Deep
 from .json_parser import Chapter1ParseError, parse_deepseek_json_object
 from .models import (
     Chapter1ContentBlock,
+    Chapter1GenerationContext,
     Chapter1SemanticSection,
     Chapter1SectionStatus,
     Chapter1Source,
 )
-from .prompt_builder import build_repair_prompt
+from .prompt_builder import build_chapter1_system_prompt, build_repair_prompt
 from .validators import validate_section
 from .text_polisher import polish_chapter1_paragraph
 
@@ -37,12 +38,15 @@ class Chapter1RepairService:
         product_name: str,
         company_name: str,
         sources: list[Chapter1Source],
+        chapter1_context: Chapter1GenerationContext | dict | None = None,
+        repair_mode: str = "fill_missing",
+        validation_issues: list[str] | None = None,
     ) -> Chapter1SemanticSection:
         section_key = str(section_spec.get("key") or "").strip()
         section_title = str(section_spec.get("title") or "").strip()
         need_repair = (
             section.status == Chapter1SectionStatus.INCOMPLETE
-            or section.validation_score < 70
+            or section.validation_score < 80
             or bool(section.missing_items)
             or not section.content_blocks
             or (not section.sources and not section.content_blocks)
@@ -63,6 +67,8 @@ class Chapter1RepairService:
             "attempts": [],
             "warnings": [],
             "skipped": False,
+            "repair_mode": repair_mode,
+            "validation_issues": list(validation_issues or section.validation_issues or []),
         }
         self.last_record = record
 
@@ -76,11 +82,14 @@ class Chapter1RepairService:
                 section_spec=section_spec,
                 section=current,
                 sources=sources,
+                chapter1_context=chapter1_context,
+                repair_mode=repair_mode,
+                validation_issues=validation_issues or section.validation_issues,
             )
             messages = [
                 {
                     "role": "system",
-                    "content": "你是产业研究分析师，只负责补写缺失块。请只输出 json，不要输出 Markdown，不要输出解释。",
+                    "content": build_chapter1_system_prompt(),
                 },
                 {
                     "role": "user",
@@ -98,7 +107,7 @@ class Chapter1RepairService:
                     section_key=section_key,
                     max_output_tokens=max_output_tokens,
                     timeout_seconds=CHAPTER1_REPAIR_TIMEOUT_SECONDS,
-                    retry_max_attempts=1,
+                    retry_max_attempts=2,
                 )
             except (Chapter1LLMUnavailableError, Chapter1LLMError) as exc:
                 warning = f"{section_title} 第 {attempt} 次补写失败：{exc}"
@@ -126,13 +135,16 @@ class Chapter1RepairService:
                 record["warnings"].append(warning)
                 continue
 
-            current = self._merge_blocks(current, blocks)
-            current = validate_section(current, section_spec)
+            if repair_mode == "rewrite_quality":
+                current = current.model_copy(update={"content_blocks": list(blocks)})
+            else:
+                current = self._merge_blocks(current, blocks)
+            current = validate_section(current, section_spec, company_name=company_name, chapter1_context=chapter1_context)
             attempt_record["validated_status"] = current.status.value
             attempt_record["validated_score"] = current.validation_score
             if current.status in {Chapter1SectionStatus.COMPLETED, Chapter1SectionStatus.COMPLETED_WITH_WARNING}:
                 break
-            if current.validation_score >= 70 and current.content_blocks:
+            if current.validation_score >= 80 and current.content_blocks:
                 break
 
         if current.status in {Chapter1SectionStatus.INCOMPLETE, Chapter1SectionStatus.FAILED}:

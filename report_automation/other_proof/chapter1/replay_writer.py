@@ -26,6 +26,7 @@ class Chapter1ReplayWriter:
                 "use_cache": snapshot.use_cache,
                 "enable_web_retrieval": snapshot.enable_web_retrieval,
                 "allow_incomplete_export": snapshot.allow_incomplete_export,
+                "chapter1_context": snapshot.chapter1_context.model_dump(mode="json") if snapshot.chapter1_context else None,
                 "progress": snapshot.progress,
                 "current_stage": snapshot.current_stage,
                 "current_section": snapshot.current_section,

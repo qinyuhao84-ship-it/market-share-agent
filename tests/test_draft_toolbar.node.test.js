@@ -85,14 +85,15 @@ test('第一章按企业缓存：版本草稿会保存并恢复第一章', () =>
   assert.match(source, /function chapter1SectionsContainPlaceholder\(sections\) \{/);
   assert.doesNotMatch(source, /if \(paragraphs\.length < spec\.slot_count\) return true;/);
   assert.match(source, /text\.includes\("【待补充："\)/);
-  assert.match(source, /function isReusableOtherChapter1CacheEntry\(entry, productName = ""\) \{/);
-  assert.match(source, /function getOtherChapter1Cache\(companyName, productName = ""\) \{/);
-  assert.match(source, /if \(!isReusableOtherChapter1CacheEntry\(entry, productName\)\) \{/);
+  assert.match(source, /function isReusableOtherChapter1CacheEntry\(entry, productName = "", chapter1ContextSignature = ""\) \{/);
+  assert.match(source, /function getOtherChapter1Cache\(companyName, productName = "", chapter1ContextSignature = ""\) \{/);
+  assert.match(source, /if \(!isReusableOtherChapter1CacheEntry\(entry, productName, currentSignature\)\) \{/);
   assert.match(source, /delete otherProofChapter1CacheByCompany\[key\];/);
-  assert.match(source, /function setOtherChapter1Cache\(companyName, sections, productName = ""\) \{/);
+  assert.match(source, /function setOtherChapter1Cache\(companyName, sections, productName = "", chapter1ContextSignature = ""\) \{/);
+  assert.match(source, /chapter1_context_signature:\s*chapter1ContextSignature \|\| getChapter1ContextSignature\(\),/);
   assert.match(source, /semantic_draft:\s*otherProofChapter1SemanticDraft \|\| null,/);
   assert.match(source, /replay_file_path:\s*otherProofChapter1ReplayFilePath \|\| "",/);
-  assert.match(source, /if \(!force\) \{[\s\S]*getOtherChapter1Cache\(companyName,\s*product\)/);
+  assert.match(source, /if \(!force\) \{[\s\S]*getOtherChapter1Cache\(companyName,\s*product,\s*getChapter1ContextSignature\(\)\)/);
   assert.match(source, /otherProofChapter1SemanticDraft = cached\.semantic_draft \|\| null;/);
   assert.match(source, /otherProofChapter1TaskId = "";[\s\S]*otherProofChapter1TaskSnapshot = null;/);
   assert.match(source, /setOtherChapter1Cache\(companyName, legacySections, product\);/);
@@ -114,8 +115,8 @@ test('第一章重新生成只能显式触发', () => {
   assert.match(source, /onclick="regenerateOtherChapter1\(\)"/);
   assert.match(source, /async function regenerateOtherChapter1\(\) \{/);
   assert.match(source, /ensureOtherChapter1\(true,\s*false\)/);
-  assert.match(source, /ensureOtherChapter1\(false,\s*true\)/);
-  assert.doesNotMatch(source, /ensureOtherChapter1\(false,\s*false\)/);
+  assert.match(source, /ensureOtherChapter1\(false,\s*false\)/);
+  assert.doesNotMatch(source, /ensureOtherChapter1\(false,\s*true\)/);
 });
 
 test('图表标题前缀自动生成，用户只填写后半句', () => {
@@ -130,7 +131,7 @@ test('图表标题前缀自动生成，用户只填写后半句', () => {
   assert.match(source, /function validateSourceChartData\(sources, contextLabel = "数据来源"\) \{/);
   assert.match(source, /chart_title: `图表\$\{idx \+ 1\}：\$\{suffix\}`/);
   assert.match(source, /names,\s*url: urls\[0\] \|\| "",\s*urls,/);
-  assert.match(source, /if \(block\.names\.length \|\| block\.urls\.length \|\| suffix \|\| block\.analysis \|\| block\.chart_2023 \|\| block\.chart_2024 \|\| block\.chart_2025\) list\.push\(block\);/);
+  assert.match(source, /if \(block\.names\.length \|\| block\.urls\.length \|\| suffix \|\| block\.analysis \|\| block\.fact_summary \|\| block\.chart_2023 \|\| block\.chart_2024 \|\| block\.chart_2025\) list\.push\(block\);/);
 });
 
 test('经营数据市场规模支持手填且来源优先', () => {
@@ -164,12 +165,12 @@ test('他证第一章部分失败时继续导出并显示回放路径', () => {
   assert.match(source, /async function abortOtherChapter1Generation\(\) \{/);
   assert.match(source, /fetch\(`\/other-proof\/chapter1\/tasks\/\$\{encodeURIComponent\(taskId\)\}\/cancel`/);
   assert.match(source, /signal: otherChapter1AbortController\.signal/);
-  assert.match(source, /allow_incomplete_export:\s*allowPartial/);
+  assert.match(source, /allow_incomplete_export:\s*false/);
   assert.match(source, /enable_web_retrieval:\s*false/);
   assert.match(source, /formatApiErrorDetail\(err, chapter1RetryTip\)/);
   assert.match(source, /调试回放文件/);
-  assert.match(source, /const chapter1Ready = await ensureOtherChapter1\(false,\s*true\);/);
-  assert.match(source, /if \(!chapter1Ready\) \{[\s\S]*已继续导出 Word/);
+  assert.match(source, /const chapter1Ready = await ensureOtherChapter1\(false,\s*false\);/);
+  assert.match(source, /if \(!chapter1Ready\) \{\s*return;\s*\}/);
   assert.doesNotMatch(source, /const chapter1WasRunning = !!otherChapter1AbortController;/);
   assert.doesNotMatch(source, /if \(!chapter1Ready && chapter1WasRunning\) \{\s*return;/);
   assert.match(source, /data\.chapter1_replay_file_path = otherProofChapter1ReplayFilePath;/);

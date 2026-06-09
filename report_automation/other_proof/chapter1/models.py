@@ -31,13 +31,54 @@ class Chapter1SectionStatus(str, Enum):
     USER_EDITED = "user_edited"
 
 
+class Chapter1MarketScope(BaseModel):
+    market_name: str = ""
+    parent_market: str = ""
+    segmentation_path: List[str] = Field(default_factory=list)
+    included_scope: List[str] = Field(default_factory=list)
+    excluded_scope: List[str] = Field(default_factory=list)
+
+
+class Chapter1EvidenceFact(BaseModel):
+    fact_id: str
+    type: str = "general"
+    title: str = ""
+    fact: str
+    source_title: str = ""
+    url: str = ""
+    allowed_sections: List[str] = Field(default_factory=list)
+
+
+class Chapter1GenerationContext(BaseModel):
+    raw_product_name: str = ""
+    normalized_product_name: str = ""
+    product_code: str = ""
+    product_category: str = ""
+    product_intro: str = ""
+    product_capabilities: List[str] = Field(default_factory=list)
+    product_outputs: List[str] = Field(default_factory=list)
+    excluded_capabilities: List[str] = Field(default_factory=list)
+    application_industries: List[str] = Field(default_factory=list)
+    application_scenarios: List[str] = Field(default_factory=list)
+    target_users: List[str] = Field(default_factory=list)
+    market_scope: Chapter1MarketScope = Field(default_factory=Chapter1MarketScope)
+    evidence_facts: List[Chapter1EvidenceFact] = Field(default_factory=list)
+    writing_style: str = "consulting_report"
+
+
 class Chapter1TaskCreateRequest(BaseModel):
     company_name: str = ""
     product_name: str = Field(..., min_length=1)
+    product_code: str = ""
+    product_intro: str = ""
+    market_name: str = ""
+    proof_scope: str = ""
+    target_scope: str = ""
+    chapter1_context: Chapter1GenerationContext = Field(default_factory=Chapter1GenerationContext)
     use_cache: bool = True
     enable_web_retrieval: bool = False
-    allow_incomplete_export: bool = True
-    generation_mode: Literal["balanced", "strict", "fast"] = "balanced"
+    allow_incomplete_export: bool = False
+    generation_mode: Literal["balanced", "strict", "fast"] = "strict"
     model_name: str = Field(default=CHAPTER1_MODEL_NAME)
 
     model_config = ConfigDict(extra="ignore")
@@ -108,10 +149,11 @@ class Chapter1TaskSnapshot(BaseModel):
     product_name: str
     model_name: str = Field(default=CHAPTER1_MODEL_NAME)
     model_mode: str = Field(default=CHAPTER1_MODEL_MODE)
-    generation_mode: str = "balanced"
+    generation_mode: str = "strict"
     use_cache: bool = True
     enable_web_retrieval: bool = False
-    allow_incomplete_export: bool = True
+    allow_incomplete_export: bool = False
+    chapter1_context: Chapter1GenerationContext = Field(default_factory=Chapter1GenerationContext)
     semantic_draft: Optional[Chapter1SemanticDraft] = None
     legacy_sections: List[dict] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)

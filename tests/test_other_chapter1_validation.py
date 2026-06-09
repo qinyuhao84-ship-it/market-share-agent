@@ -32,7 +32,7 @@ def test_validate_section_without_content_fails():
     assert "内容块为空" in validated.validation_issues
 
 
-def test_validate_section_with_content_but_no_sources_keeps_warning_status():
+def test_validate_section_with_content_but_no_sources_fails_on_structure():
     spec = SECTION_LOOKUP["background_overview"]
     section = Chapter1SemanticSection(
         section_id="background_overview",
@@ -51,13 +51,9 @@ def test_validate_section_with_content_but_no_sources_keeps_warning_status():
 
     validated = validate_section(section, spec)
 
-    assert validated.status in {
-        Chapter1SectionStatus.COMPLETED,
-        Chapter1SectionStatus.COMPLETED_WITH_WARNING,
-        Chapter1SectionStatus.INCOMPLETE,
-    }
-    assert "资料来源不足" not in validated.validation_issues
-    assert "资料来源未被正文引用" not in validated.validation_issues
+    assert validated.status == Chapter1SectionStatus.FAILED
+    assert any("内容块数量不符合要求" in item for item in validated.validation_issues)
+    assert any("缺少必要块类型：product_position" in item for item in validated.validation_issues)
 
 
 def test_validate_section_placeholder_text_is_not_treated_as_real_content():
@@ -134,7 +130,7 @@ def test_validate_section_supply_chain_missing_three_blocks_is_incomplete():
     assert "development_direction" in validated.missing_items
 
 
-def test_validate_section_does_not_require_fixed_paragraph_count():
+def test_validate_section_requires_fixed_paragraph_count():
     spec = SECTION_LOOKUP["background_overview"]
     section = Chapter1SemanticSection(
         section_id="background_overview",
@@ -159,8 +155,9 @@ def test_validate_section_does_not_require_fixed_paragraph_count():
 
     validated = validate_section(section, spec)
 
-    assert validated.status != Chapter1SectionStatus.FAILED
-    assert validated.validation_score > 0
+    assert validated.status == Chapter1SectionStatus.FAILED
+    assert validated.validation_score < 80
+    assert any("内容块数量不符合要求" in item for item in validated.validation_issues)
 
 
 def test_validate_draft_fills_missing_sections():

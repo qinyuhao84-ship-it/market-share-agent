@@ -35,6 +35,23 @@ LABEL_PREFIX_PATTERNS = (
     "发展方向",
 )
 
+LEADING_LABEL_WORDS = (
+    "上游环节",
+    "中游环节",
+    "下游环节",
+    "产品定义",
+    "应用范围",
+    "核心技术原理",
+    "关键工作流程",
+    "行业发展趋势",
+    "政策环境",
+    "市场环境",
+    "技术环境",
+    "上游",
+    "中游",
+    "下游",
+)
+
 UNCERTAIN_WORDS = (
     "可能",
     "或许",
@@ -66,7 +83,9 @@ def polish_chapter1_paragraph(text: str, *, company_name: str = "") -> str:
     cleaned = _remove_company_name(cleaned, company_name)
     cleaned = _remove_leading_labels(cleaned)
     cleaned = _remove_ai_markers(cleaned)
+    cleaned = _normalize_abnormal_punctuation(cleaned)
     cleaned = _normalize_colons(cleaned)
+    cleaned = _normalize_abnormal_punctuation(cleaned)
     cleaned = _normalize_spaces(cleaned)
     cleaned = _normalize_punctuation_spacing(cleaned)
     return cleaned.strip()
@@ -113,23 +132,46 @@ def _remove_leading_labels(text: str) -> str:
                 break
     cleaned = re.sub(r"^[一-龥A-Za-z0-9（）()、]{2,18}[：:]\s*", "", cleaned)
     cleaned = re.sub(r"^[一二三四五六七八九十]+[、.．]\s*", "", cleaned)
+    for label in LEADING_LABEL_WORDS:
+        if cleaned.startswith(label):
+            cleaned = cleaned[len(label) :].lstrip("，,：:；;。 ")
     return cleaned.strip()
 
 
 def _remove_ai_markers(text: str) -> str:
     cleaned = text
     replacements = {
-        "可能采用": "通常采用",
-        "有望持续提升": "将持续深化",
-        "有望": "将",
-        "可能": "通常",
-        "预计": "将",
-        "大概": "",
-        "或许": "",
         "据公开资料": "",
+        "暂无资料": "",
+        "待补充": "",
+        "请人工补充": "",
     }
     for old, new in replacements.items():
         cleaned = cleaned.replace(old, new)
+    return cleaned
+
+
+def _normalize_abnormal_punctuation(text: str) -> str:
+    cleaned = str(text or "")
+    cleaned = cleaned.replace("、：", "、")
+    cleaned = cleaned.replace("、:", "、")
+    cleaned = cleaned.replace("，：", "，")
+    cleaned = cleaned.replace("，:", "，")
+    cleaned = cleaned.replace("。：", "。")
+    cleaned = cleaned.replace("。:", "。")
+    cleaned = cleaned.replace("；：", "；")
+    cleaned = cleaned.replace("；:", "；")
+    cleaned = cleaned.replace("、，", "、")
+    cleaned = cleaned.replace("，、", "，")
+    cleaned = cleaned.replace(",：", "，")
+    cleaned = cleaned.replace(":，", "，")
+    cleaned = re.sub(r"(?<=[\u4e00-\u9fff]),(?=[\u4e00-\u9fffA-Za-z0-9])", "，", cleaned)
+    cleaned = re.sub(r"[，,]{2,}", "，", cleaned)
+    cleaned = re.sub(r"[、]{2,}", "、", cleaned)
+    cleaned = re.sub(r"[。]{2,}", "。", cleaned)
+    cleaned = cleaned.replace("，。", "。")
+    cleaned = cleaned.replace("、。", "。")
+    cleaned = cleaned.replace("；。", "。")
     return cleaned
 
 
@@ -151,4 +193,3 @@ def _normalize_punctuation_spacing(text: str) -> str:
     cleaned = re.sub(r"([，。；、])\s+", r"\1", cleaned)
     cleaned = cleaned.replace(" ,", "，").replace(", ", "，")
     return cleaned
-

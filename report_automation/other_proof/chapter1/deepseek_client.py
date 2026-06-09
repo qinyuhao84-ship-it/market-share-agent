@@ -9,6 +9,7 @@ from .config import (
     CHAPTER1_MODEL_NAME,
     CHAPTER1_REASONING_EFFORT,
     CHAPTER1_RESPONSE_FORMAT,
+    CHAPTER1_TEMPERATURE,
     CHAPTER1_THINKING_CONFIG,
 )
 
@@ -51,6 +52,7 @@ class DeepSeekV4FlashChapter1Client:
         max_output_tokens: int,
         timeout_seconds: int,
         retry_max_attempts: int = 1,
+        temperature: float = CHAPTER1_TEMPERATURE,
     ) -> str:
         if not self.is_available():
             reason = f"第一章模型 {CHAPTER1_MODEL_NAME} 不可用"
@@ -66,6 +68,7 @@ class DeepSeekV4FlashChapter1Client:
             "max_output_tokens": int(max_output_tokens),
             "timeout_seconds": int(timeout_seconds),
             "retry_max_attempts": int(retry_max_attempts),
+            "temperature": float(temperature),
             "response_format": dict(CHAPTER1_RESPONSE_FORMAT),
             "reasoning_effort": CHAPTER1_REASONING_EFFORT,
             "thinking": dict(CHAPTER1_THINKING_CONFIG.get("thinking", {})),
@@ -74,7 +77,7 @@ class DeepSeekV4FlashChapter1Client:
             raw = self.orchestrator.client.complete(  # type: ignore[union-attr]
                 self.last_messages,
                 model=CHAPTER1_MODEL_NAME,
-                temperature=None,
+                temperature=temperature,
                 max_output_tokens=max_output_tokens,
                 timeout_seconds=timeout_seconds,
                 retry_max_attempts=retry_max_attempts,

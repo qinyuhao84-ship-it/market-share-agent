@@ -91,23 +91,28 @@
       return hasRealContent;
     }
 
-    function isReusableOtherChapter1CacheEntry(entry, productName = "") {
+    function isReusableOtherChapter1CacheEntry(entry, productName = "", chapter1ContextSignature = "") {
       if (!entry || typeof entry !== "object") return false;
       if (entry.schema_version && entry.schema_version !== ReportAutomationChapter1Config.schemaVersion) return false;
       if (entry.model_name && entry.model_name !== ReportAutomationChapter1Config.modelName) return false;
       if (chapter1SectionsContainPlaceholder(entry.sections)) return false;
+      const expectedSignature = String(chapter1ContextSignature || "").trim();
+      if (!expectedSignature) return false;
+      const cachedSignature = String(entry.chapter1_context_signature || "").trim();
+      if (cachedSignature !== expectedSignature) return false;
       const expectedProduct = String(productName || "").trim();
       if (!expectedProduct) return true;
       const cachedProduct = String(entry.product_name || "").trim();
       return cachedProduct === expectedProduct;
     }
 
-    function getOtherChapter1Cache(companyName, productName = "") {
+    function getOtherChapter1Cache(companyName, productName = "", chapter1ContextSignature = "") {
       const key = normalizeCompanyCacheKey(companyName);
       if (!key) return null;
       const entry = otherProofChapter1CacheByCompany[key];
       if (!entry) return null;
-      if (!isReusableOtherChapter1CacheEntry(entry, productName)) {
+      const currentSignature = chapter1ContextSignature || getChapter1ContextSignature();
+      if (!isReusableOtherChapter1CacheEntry(entry, productName, currentSignature)) {
         delete otherProofChapter1CacheByCompany[key];
         persistOtherChapter1CacheToStorage();
         return null;
@@ -115,7 +120,7 @@
       return entry;
     }
 
-    function setOtherChapter1Cache(companyName, sections, productName = "") {
+    function setOtherChapter1Cache(companyName, sections, productName = "", chapter1ContextSignature = "") {
       const key = normalizeCompanyCacheKey(companyName);
       if (!key) return;
       otherProofChapter1CacheByCompany[key] = {
@@ -126,6 +131,7 @@
         sections: Array.isArray(sections) ? sections : [],
         semantic_draft: otherProofChapter1SemanticDraft || null,
         replay_file_path: otherProofChapter1ReplayFilePath || "",
+        chapter1_context_signature: chapter1ContextSignature || getChapter1ContextSignature(),
         updated_ts: Date.now(),
       };
       persistOtherChapter1CacheToStorage();
@@ -141,7 +147,7 @@
 
     function applyCompanyChapter1Cache(companyName) {
       const product = document.getElementById("product_name")?.value || "";
-      const entry = getOtherChapter1Cache(companyName, product);
+      const entry = getOtherChapter1Cache(companyName, product, getChapter1ContextSignature());
       otherProofChapter1Sections = entry ? entry.sections : [];
       otherProofChapter1SemanticDraft = entry && entry.semantic_draft ? entry.semantic_draft : null;
       otherProofChapter1ReplayFilePath = entry && typeof entry.replay_file_path === "string" ? entry.replay_file_path : "";
@@ -153,6 +159,14 @@
             ? `第一章：已缓存 ${otherProofChapter1Sections.length} 个小节`
             : "第一章：尚未生成"
         );
+      }
+    }
+
+    function getChapter1ContextSignature() {
+      try {
+        return JSON.stringify(buildChapter1GenerationContextFromForm());
+      } catch (_e) {
+        return "";
       }
     }
 
@@ -990,6 +1004,7 @@
           <div class="field"><label>2025年市场规模（亿元）</label><input class="s-c25" placeholder="例如：482.6" /></div>
         </div>
         <div class="field"><label>该层来源正文（可粘贴）</label><textarea class="s-quote" style="min-height:95px;" placeholder="可粘贴该层来源原文、摘要或核验说明"></textarea></div>
+        <div class="field"><label>资料事实摘要</label><textarea class="s-fact-summary" style="min-height:95px;" placeholder="可直接给第一章使用的事实摘要，没有时可留空"></textarea></div>
       `;
 
       document.getElementById("sources_list").appendChild(card);
@@ -1010,6 +1025,7 @@
         card.querySelector(".s-c24").value = prefill.chart_2024 || "";
         card.querySelector(".s-c25").value = prefill.chart_2025 || "";
         card.querySelector(".s-quote").value = prefill.analysis || "";
+        card.querySelector(".s-fact-summary").value = prefill.fact_summary || prefill.analysis_text || prefill.analysis || "";
       }
       syncBusinessMarketScaleFromSources();
     }
@@ -1081,8 +1097,9 @@
           chart_2024: card.querySelector(".s-c24").value.trim(),
           chart_2025: card.querySelector(".s-c25").value.trim(),
           analysis: card.querySelector(".s-quote").value,
+          fact_summary: card.querySelector(".s-fact-summary").value,
         };
-        if (block.names.length || block.urls.length || suffix || block.analysis || block.chart_2023 || block.chart_2024 || block.chart_2025) list.push(block);
+        if (block.names.length || block.urls.length || suffix || block.analysis || block.fact_summary || block.chart_2023 || block.chart_2024 || block.chart_2025) list.push(block);
       });
 
       if (ensureDefault && list.length === 0) {
@@ -1096,9 +1113,213 @@
           chart_2024: "",
           chart_2025: "",
           analysis: "未生成可用正文，请补充可核验数据来源后再生成。",
+          fact_summary: "",
         });
       }
       return list;
+    }
+
+    function normalizeFormalProductName(raw) {
+      return String(raw || "")
+        .replace(/面向一些工业流程/g, "面向流程工业")
+        .replace(/某些/g, "")
+        .replace(/一些/g, "")
+        .replace(/\s+/g, "")
+        .trim();
+    }
+
+    function getSourceTitle(row) {
+      const names = Array.isArray(row?.names) ? row.names : [];
+      const title = names.find((item) => String(item || "").trim()) || row?.name || row?.chart_title || row?.url || "";
+      return String(title || "").trim();
+    }
+
+    function getSourceUrl(row) {
+      const urls = Array.isArray(row?.urls) ? row.urls : [];
+      const url = urls.find((item) => String(item || "").trim()) || row?.url || "";
+      return String(url || "").trim();
+    }
+
+    function getSourceDescription(row) {
+      return String(row?.fact_summary || row?.analysis || row?.analysis_text || "").trim();
+    }
+
+    function inferSourceType(row) {
+      const text = [getSourceTitle(row), getSourceUrl(row), getSourceDescription(row)]
+        .join(" ")
+        .toLowerCase();
+      if (text.includes("政策")) return "policy";
+      if (text.includes("报告") || text.includes("研究")) return "industry";
+      if (text.includes("市场") || text.includes("规模")) return "market";
+      if (text.includes("标准") || text.includes("规范")) return "standard";
+      return "general";
+    }
+
+    function inferAllowedSections(row) {
+      const text = [getSourceTitle(row), getSourceDescription(row)].join(" ");
+      const allowed = [];
+      if (text.includes("政策") || text.includes("标准")) {
+        allowed.push("industry_environment", "industry_trends");
+      }
+      if (text.includes("市场") || text.includes("规模") || text.includes("趋势") || text.includes("竞争")) {
+        allowed.push("industry_environment", "industry_trends");
+      }
+      if (text.includes("供应链") || text.includes("上游") || text.includes("中游") || text.includes("下游")) {
+        allowed.push("industry_supply_chain");
+      }
+      return Array.from(new Set(allowed));
+    }
+
+    function buildChapter1EvidenceFactsFromSources() {
+      return collectSources(false)
+        .map((row, index) => {
+          const title = getSourceTitle(row);
+          const url = getSourceUrl(row);
+          const fact = getSourceDescription(row);
+          return {
+            fact_id: `source_${String(index + 1).padStart(3, "0")}`,
+            type: inferSourceType(row),
+            title,
+            fact,
+            source_title: title,
+            url,
+            allowed_sections: inferAllowedSections(row),
+          };
+        })
+        .filter((item) => item.fact || item.source_title || item.url);
+    }
+
+    function inferProductCapabilities(productIntro, productName) {
+      const text = `${productName || ""} ${productIntro || ""}`;
+      const items = [];
+      const push = (value) => {
+        if (value && !items.includes(value)) items.push(value);
+      };
+      if (/点云|扫描|激光/.test(text)) push("激光点云数据接入");
+      if (/预处理/.test(text)) push("点云预处理");
+      if (/语义|识别|AI/.test(text)) push("AI语义识别");
+      if (/分割/.test(text)) push("点云分割");
+      if (/拟合|重建/.test(text)) push("模型拟合");
+      if (/导出|交付/.test(text)) push("工程模型导出");
+      if (/数字孪生/.test(text)) push("数字孪生平台对接");
+      return items.length ? items : ["工业三维数字化处理"];
+    }
+
+    function inferProductOutputs() {
+      return ["可编辑三维模型", "工程化三维模型", "可用于数字化交付的空间模型"];
+    }
+
+    function inferExcludedCapabilities() {
+      return ["普通三维扫描硬件销售", "消费级建模", "商业空间展示渲染", "纯可视化平台", "通用 GIS/CIM 可视化底座"];
+    }
+
+    function inferApplicationIndustries(productIntro) {
+      const text = String(productIntro || "");
+      const items = [];
+      const push = (value) => {
+        if (value && !items.includes(value)) items.push(value);
+      };
+      if (/石油|化工|流程/.test(text)) push("石油化工");
+      if (/电力|能源/.test(text)) push("能源电力");
+      if (/冶金/.test(text)) push("冶金");
+      if (/建材/.test(text)) push("建材");
+      if (/船舶/.test(text)) push("船舶");
+      return items.length ? items : ["石油化工", "能源电力", "冶金", "建材", "船舶", "流程工业工程项目"];
+    }
+
+    function inferApplicationScenarios(productIntro, proofScope) {
+      const text = `${productIntro || ""} ${proofScope || ""}`;
+      const items = [];
+      const push = (value) => {
+        if (value && !items.includes(value)) items.push(value);
+      };
+      if (/逆向建模|既有设施/.test(text)) push("既有设施逆向建模");
+      if (/改扩建|设计复核/.test(text)) push("改扩建工程设计复核");
+      if (/施工|进度/.test(text)) push("施工进度验证");
+      if (/数字化交付/.test(text)) push("数字化交付");
+      if (/运维/.test(text)) push("资产运维");
+      if (/数字孪生/.test(text)) push("数字孪生工厂建设");
+      return items.length ? items : ["既有设施逆向建模", "改扩建工程设计复核", "施工进度验证", "数字化交付", "资产运维", "数字孪生工厂建设"];
+    }
+
+    function inferTargetUsers(productIntro, proofScope) {
+      const text = `${productIntro || ""} ${proofScope || ""}`;
+      const items = [];
+      const push = (value) => {
+        if (value && !items.includes(value)) items.push(value);
+      };
+      if (/业主|甲方/.test(text)) push("流程工业业主单位");
+      if (/EPC|总包|工程公司/.test(text)) push("EPC 工程公司");
+      if (/设计院/.test(text)) push("工程设计院");
+      if (/运维|资产/.test(text)) push("资产运维部门");
+      return items.length ? items : ["流程工业业主单位", "EPC 工程公司", "工程设计院", "资产运维部门"];
+    }
+
+    function inferParentMarket(targetScope) {
+      return targetScope === "GLOBAL" ? "全球工业三维数字化产品市场" : "中国工业三维数字化产品市场";
+    }
+
+    function inferSegmentationPathFromSourcesAndMarketFields(marketName, proofScope, targetScope) {
+      const base = targetScope === "GLOBAL"
+        ? "全球三维数字化产品市场"
+        : "中国三维数字化产品市场";
+      const industry = targetScope === "GLOBAL"
+        ? "全球工业领域三维数字化产品市场"
+        : "中国工业领域三维数字化产品市场";
+      const project = proofScope
+        ? `${proofScope}项目型重资产工业三维数字化产品市场`
+        : "项目型重资产工业三维数字化产品市场";
+      return Array.from(new Set([base, industry, project, marketName].filter(Boolean)));
+    }
+
+    function inferIncludedScope(productIntro, proofScope) {
+      const text = `${productIntro || ""} ${proofScope || ""}`;
+      const items = [];
+      const push = (value) => {
+        if (value && !items.includes(value)) items.push(value);
+      };
+      if (/点云|建模|数字孪生|工业/.test(text)) push("工业点云处理");
+      if (/软件|平台/.test(text)) push("三维数字化软件");
+      if (/算法|AI/.test(text)) push("AI建模算法");
+      if (/转换|工程化|交付/.test(text)) push("工程模型转换");
+      if (/交付|运维|设计/.test(text)) push("数字化交付相关软件服务");
+      return items.length ? items : ["工业点云处理", "三维数字化软件", "AI建模算法", "工程模型转换", "数字化交付相关软件服务"];
+    }
+
+    function inferExcludedScope() {
+      return ["三维扫描硬件", "消费级建模", "家装设计软件", "通用可视化展示平台", "非工业场景三维内容制作"];
+    }
+
+    function buildChapter1GenerationContextFromForm() {
+      const productName = document.getElementById("product_name")?.value || "";
+      const productIntro = document.getElementById("product_intro")?.value || "";
+      const marketName = document.getElementById("market_name")?.value || "";
+      const proofScope = document.getElementById("proof_scope")?.value || "";
+      const targetScope = document.getElementById("target_scope")?.value || "";
+      const productCode = document.getElementById("product_code")?.value || "";
+      const sources = collectSources(false);
+      return {
+        raw_product_name: productName,
+        normalized_product_name: normalizeFormalProductName(productName),
+        product_code: productCode,
+        product_category: "工业三维数字化软件及算法服务",
+        product_intro: productIntro,
+        product_capabilities: inferProductCapabilities(productIntro, productName),
+        product_outputs: inferProductOutputs(productIntro, productName),
+        excluded_capabilities: inferExcludedCapabilities(productIntro, productName),
+        application_industries: inferApplicationIndustries(productIntro),
+        application_scenarios: inferApplicationScenarios(productIntro, proofScope),
+        target_users: inferTargetUsers(productIntro, proofScope),
+        market_scope: {
+          market_name: marketName || proofScope || targetScope || "",
+          parent_market: inferParentMarket(targetScope),
+          segmentation_path: inferSegmentationPathFromSourcesAndMarketFields(marketName, proofScope, targetScope, sources),
+          included_scope: inferIncludedScope(productIntro, proofScope),
+          excluded_scope: inferExcludedScope(productIntro, productName),
+        },
+        evidence_facts: buildChapter1EvidenceFactsFromSources(),
+        writing_style: "consulting_report",
+      };
     }
 
     function syncBusinessMarketScaleFromSources() {
@@ -1394,7 +1615,7 @@
         return false;
       }
       if (!force) {
-        const cached = getOtherChapter1Cache(companyName, product);
+        const cached = getOtherChapter1Cache(companyName, product, getChapter1ContextSignature());
         if (cached) {
           otherProofChapter1Sections = cached.sections;
           otherProofChapter1SemanticDraft = cached.semantic_draft || null;
@@ -1433,9 +1654,10 @@
               product_name: product,
               use_cache: !force,
               enable_web_retrieval: false,
-              allow_incomplete_export: allowPartial,
-              generation_mode: "balanced",
+              allow_incomplete_export: false,
+              generation_mode: "strict",
               model_name: ReportAutomationChapter1Config.modelName || "deepseek-v4-pro",
+              chapter1_context: buildChapter1GenerationContextFromForm(),
             }),
           });
         } catch (err) {
@@ -1589,6 +1811,20 @@
 
       const hasPlaceholderSection = chapter1SectionsContainPlaceholder(legacySections);
       const hasRealContent = chapter1SectionsHaveRealContent(legacySections);
+      const canExport = snapshot.can_export !== false;
+
+      if (!canExport) {
+        clearOtherChapter1Cache(companyName);
+        saveDraft(true);
+        updateChapter1State("第一章：校验未通过，已阻断导出");
+        setStatus(
+          replayFilePath
+            ? `第一章校验未通过，已阻断导出；调试回放文件：${replayFilePath}`
+            : "第一章校验未通过，已阻断导出",
+          "error"
+        );
+        return false;
+      }
 
       if (snapshot.status === "completed") {
         if (hasRealContent) {
@@ -1787,13 +2023,9 @@
         }
 
         setStatus("正在生成第一章...");
-        const chapter1Ready = await ensureOtherChapter1(false, true);
+        const chapter1Ready = await ensureOtherChapter1(false, false);
         if (!chapter1Ready) {
-          if (otherProofChapter1Sections.length) {
-            updateChapter1State(`第一章：已有 ${otherProofChapter1Sections.length} 个小节，已继续导出 Word`);
-          } else {
-            updateChapter1State("第一章：未完整生成，已继续导出 Word");
-          }
+          return;
         }
 
         setStatus("正在检查第三章企业基本信息...");

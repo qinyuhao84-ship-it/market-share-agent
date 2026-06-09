@@ -10,11 +10,12 @@ from .deepseek_client import Chapter1LLMError, Chapter1LLMUnavailableError, Deep
 from .json_parser import Chapter1ParseError, parse_deepseek_json_object
 from .models import (
     Chapter1ContentBlock,
+    Chapter1GenerationContext,
     Chapter1SemanticSection,
     Chapter1SectionStatus,
     Chapter1Source,
 )
-from .prompt_builder import build_section_prompt
+from .prompt_builder import build_chapter1_system_prompt, build_section_prompt
 from .text_polisher import polish_chapter1_paragraph
 
 
@@ -39,6 +40,8 @@ class Chapter1SectionGenerator:
         section_spec: dict,
         sources: list[Chapter1Source],
         completed_section_summaries: list[str],
+        chapter1_context: Chapter1GenerationContext | dict | None = None,
+        generation_mode: str = "strict",
     ) -> Chapter1SemanticSection:
         section_key = str(section_spec.get("key") or "").strip()
         section_title = str(section_spec.get("title") or "").strip()
@@ -49,12 +52,13 @@ class Chapter1SectionGenerator:
             section_spec=section_spec,
             sources=sources,
             completed_section_summaries=completed_section_summaries,
-            generation_mode="balanced",
+            chapter1_context=chapter1_context,
+            generation_mode=generation_mode,
         )
         messages = [
             {
                 "role": "system",
-                "content": "你是产业研究分析师。只输出 json，不要输出 Markdown，不要输出解释。",
+                "content": build_chapter1_system_prompt(),
             },
             {
                 "role": "user",
@@ -69,6 +73,8 @@ class Chapter1SectionGenerator:
             "model_name": self.client.model_name,
             "max_output_tokens": max_output_tokens,
             "timeout_seconds": CHAPTER1_SECTION_TIMEOUT_SECONDS,
+            "generation_mode": generation_mode,
+            "chapter1_context": _context_dump(chapter1_context),
         }
 
         raw = self.client.complete_json(
@@ -76,7 +82,7 @@ class Chapter1SectionGenerator:
             section_key=section_key,
             max_output_tokens=max_output_tokens,
             timeout_seconds=CHAPTER1_SECTION_TIMEOUT_SECONDS,
-            retry_max_attempts=1,
+            retry_max_attempts=2,
         )
         self.last_raw_output = raw
         self.last_record["raw_output"] = raw
@@ -91,6 +97,7 @@ class Chapter1SectionGenerator:
             sources=sources,
             company_name=company_name,
         )
+        section = self._align_blocks_to_spec(section, section_spec)
         self.last_record["content_block_count"] = len(section.content_blocks)
         return section
 
@@ -168,3 +175,56 @@ class Chapter1SectionGenerator:
                     ]
                 return list(value)
         return []
+
+    def _align_blocks_to_spec(
+        self,
+        section: Chapter1SemanticSection,
+        section_spec: Mapping[str, Any],
+    ) -> Chapter1SemanticSection:
+        required_block_types = [
+            str(item).strip()
+            for item in (section_spec.get("required_block_types") or [])
+            if str(item).strip()
+        ]
+        if not required_block_types:
+            return section
+
+        blocks = list(section.content_blocks or [])
+        if not blocks:
+            return section
+
+        if len(blocks) == len(required_block_types):
+            aligned = []
+            for index, expected_type in enumerate(required_block_types):
+                block = blocks[index]
+                if str(block.block_type or "").strip() != expected_type:
+                    block = block.model_copy(update={"block_type": expected_type})
+                aligned.append(block)
+            return section.model_copy(update={"content_blocks": aligned})
+
+        remaining = list(blocks)
+        aligned = []
+        for expected_type in required_block_types:
+            matched_index = next(
+                (idx for idx, block in enumerate(remaining) if str(block.block_type or "").strip() == expected_type),
+                None,
+            )
+            if matched_index is None:
+                if remaining:
+                    block = remaining.pop(0)
+                    aligned.append(block.model_copy(update={"block_type": expected_type}))
+                continue
+            aligned.append(remaining.pop(matched_index))
+
+        if not aligned:
+            return section
+
+        return section.model_copy(update={"content_blocks": aligned})
+
+
+def _context_dump(context: Chapter1GenerationContext | dict | None) -> dict[str, Any]:
+    if context is None:
+        return {}
+    if isinstance(context, dict):
+        return dict(context)
+    return context.model_dump(mode="python")

@@ -20,10 +20,14 @@ from .config import (
     SECTION_SPECS,
     CHAPTER1_THINKING_CONFIG,
 )
+from .export_gate import validate_chapter1_exportable
 from .json_parser import Chapter1ParseError, parse_deepseek_json_object
 from .legacy_adapter import semantic_draft_to_legacy_sections
 from .models import (
     Chapter1ContentBlock,
+    Chapter1EvidenceFact,
+    Chapter1GenerationContext,
+    Chapter1MarketScope,
     Chapter1SemanticDraft,
     Chapter1SemanticSection,
     Chapter1SectionStatus,
@@ -62,6 +66,9 @@ __all__ = [
     "SECTION_SPECS",
     "CHAPTER1_THINKING_CONFIG",
     "Chapter1ContentBlock",
+    "Chapter1EvidenceFact",
+    "Chapter1GenerationContext",
+    "Chapter1MarketScope",
     "Chapter1ParseError",
     "Chapter1SemanticDraft",
     "Chapter1SemanticSection",
@@ -87,4 +94,5 @@ __all__ = [
     "UNCERTAIN_WORDS",
     "validate_draft",
     "validate_section",
+    "validate_chapter1_exportable",
 ]

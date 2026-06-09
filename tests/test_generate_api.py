@@ -588,19 +588,13 @@ def test_generate_other_template_keeps_word_export_when_chapter1_sections_empty(
         assert data["chapter1_sections"] == []
         assert data["skip_chapter1"] is False
         assert data["chapter1_replay_file_path"] == "/tmp/chapter1-replay.json"
-        Path(output_path).write_bytes(b"PK\x03\x04fake-other-docx")
-        return ["第一章正文未生成成功，已按占位内容写入 Word"]
+        raise other_proof_module.OtherProofError("第一章导出校验未通过：第一章语义草稿为空")
 
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(report_generation, "generate_other_docx", fake_generate)
 
     resp = client.post("/generate", json=payload)
 
-    assert resp.status_code == 200
-    raw_warnings = resp.headers.get("X-Generate-Warnings")
-    assert raw_warnings
-    decoded = json.loads(urllib.parse.unquote(raw_warnings))
-    assert decoded == ["第一章正文未生成成功，已按占位内容写入 Word"]
-    raw_replay = resp.headers.get("X-Chapter1-Replay-File-Path")
-    assert raw_replay
-    assert urllib.parse.unquote(raw_replay) == "/tmp/chapter1-replay.json"
+    assert resp.status_code == 400
+    body = resp.json()
+    assert "第一章导出校验未通过" in str(body["detail"])

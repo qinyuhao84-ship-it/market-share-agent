@@ -328,13 +328,9 @@ def test_other_docx_keeps_chapter1_with_placeholders_when_chapter1_empty(tmp_pat
     payload["skip_chapter1"] = True
     output_path = tmp_path / "other-placeholder-chapter1.docx"
 
-    warnings = other_proof.generate_other_docx(payload, template_path, output_path)
-
-    texts = _extract_paragraph_texts(output_path)
-    assert any(text.startswith("第一章 ") and "产品概况" in text for text in texts)
-    assert other_proof.PLACEHOLDER_TEXT in texts
-    assert any("跳过第一章标记" in item for item in warnings)
-    assert any("未生成成功" in item for item in warnings)
+    with pytest.raises(other_proof.OtherProofError, match="第一章导出校验未通过"):
+        other_proof.generate_other_docx(payload, template_path, output_path)
+    assert not output_path.exists()
 
 
 def test_other_docx_keeps_chapter1_with_placeholders_when_chapter1_all_placeholder(tmp_path: Path):
@@ -351,12 +347,9 @@ def test_other_docx_keeps_chapter1_with_placeholders_when_chapter1_all_placehold
     payload["skip_chapter1"] = False
     output_path = tmp_path / "other-placeholder-chapter1-all.docx"
 
-    warnings = other_proof.generate_other_docx(payload, template_path, output_path)
-
-    texts = _extract_paragraph_texts(output_path)
-    assert other_proof.PLACEHOLDER_TEXT in texts
-    assert any("第一章正文未生成成功" in item for item in warnings)
-    assert any("已按占位内容写入 Word" in item for item in warnings)
+    with pytest.raises(other_proof.OtherProofError, match="第一章导出校验未通过"):
+        other_proof.generate_other_docx(payload, template_path, output_path)
+    assert not output_path.exists()
 
 
 def test_chart_axis_uses_integer_hundreds_for_large_values():

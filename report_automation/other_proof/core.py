@@ -21,6 +21,15 @@ from report_automation.docx.charts import (
     build_chart_series_from_sources,
     inject_market_charts_into_docx,
 )
+from report_automation.other_proof.chapter1.export_gate import validate_chapter1_exportable
+from report_automation.other_proof.chapter1.models import (
+    Chapter1ContentBlock,
+    Chapter1SemanticDraft,
+    Chapter1SemanticSection,
+    Chapter1SectionStatus,
+    Chapter1TaskSnapshot,
+    Chapter1TaskStatus,
+)
 
 
 def _register_all_namespaces(xml_content):
@@ -1070,6 +1079,14 @@ def generate_other_docx(data: Dict[str, Any], template_path: str | Path, output_
     company_count = len(sorted_rows)
     chapter1_sections, chapter1_warnings = normalize_chapter1_sections(data.get("chapter1_sections"))
     warnings.extend(chapter1_warnings)
+    export_snapshot = _build_chapter1_export_snapshot(
+        company_name=str(data.get("company_name") or "").strip(),
+        product_name=str(data.get("product_name") or "").strip(),
+        chapter1_sections=chapter1_sections,
+    )
+    export_ok, export_issues = validate_chapter1_exportable(export_snapshot)
+    if not export_ok:
+        raise OtherProofError("第一章导出校验未通过：" + "；".join(export_issues))
 
     with zipfile.ZipFile(template_path, "r") as archive:
         xml_content = archive.read("word/document.xml")
@@ -1148,6 +1165,57 @@ def generate_other_docx(data: Dict[str, Any], template_path: str | Path, output_
             archive.writestr(name, blob)
 
     return _unique_preserve_order(warnings)
+
+
+def _build_chapter1_export_snapshot(
+    *,
+    company_name: str,
+    product_name: str,
+    chapter1_sections: Sequence[Dict[str, Any]],
+) -> Chapter1TaskSnapshot:
+    semantic_sections: List[Chapter1SemanticSection] = []
+    for section in chapter1_sections:
+        if not isinstance(section, dict):
+            continue
+        section_key = str(section.get("key") or "").strip()
+        section_title = str(section.get("title") or "").strip()
+        paragraphs = [str(item).strip() for item in (section.get("paragraphs") or []) if str(item).strip()]
+        content_blocks = [
+            Chapter1ContentBlock(
+                block_id=f"{section_key}_{index:03d}",
+                block_type="body",
+                heading="",
+                body=paragraph,
+                source_refs=[],
+            )
+            for index, paragraph in enumerate(paragraphs, start=1)
+        ]
+        semantic_sections.append(
+            Chapter1SemanticSection(
+                section_id=section_key,
+                section_title=section_title,
+                content_blocks=content_blocks,
+                status=Chapter1SectionStatus.COMPLETED,
+                validation_score=100,
+            )
+        )
+
+    draft = Chapter1SemanticDraft(
+        draft_id="export-gate-draft",
+        task_id="export-gate-task",
+        company_name=company_name,
+        product_name=product_name,
+        sections=semantic_sections,
+    )
+    return Chapter1TaskSnapshot(
+        task_id="export-gate-task",
+        status=Chapter1TaskStatus.COMPLETED,
+        company_name=company_name,
+        product_name=product_name,
+        semantic_draft=draft,
+        legacy_sections=list(chapter1_sections),
+        can_export=True,
+    )
 
 
 def _bind_other_layers_to_sources(

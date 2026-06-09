@@ -37,10 +37,11 @@ class Chapter1TaskStore:
             product_name=str(request.product_name or "").strip(),
             model_name=str(request.model_name or CHAPTER1_MODEL_NAME).strip() or CHAPTER1_MODEL_NAME,
             model_mode=CHAPTER1_MODEL_MODE,
-            generation_mode=str(request.generation_mode or "balanced"),
+            generation_mode=str(request.generation_mode or "strict"),
             use_cache=bool(request.use_cache),
             enable_web_retrieval=False,
             allow_incomplete_export=bool(request.allow_incomplete_export),
+            chapter1_context=request.chapter1_context.model_copy(deep=True),
             created_at=now,
             updated_at=now,
         )
