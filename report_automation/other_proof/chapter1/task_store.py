@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 import uuid
 from datetime import datetime
@@ -129,7 +130,20 @@ class Chapter1TaskStore:
     def _save_snapshot_to_disk(self, snapshot: Chapter1TaskSnapshot) -> None:
         path = self._snapshot_path(snapshot.task_id)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(snapshot.model_dump(mode="json"), ensure_ascii=False, indent=2), encoding="utf-8")
+        payload = json.dumps(snapshot.model_dump(mode="json"), ensure_ascii=False, indent=2)
+        tmp_path = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+        try:
+            with tmp_path.open("w", encoding="utf-8") as handle:
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(tmp_path, path)
+        finally:
+            try:
+                if tmp_path.exists():
+                    tmp_path.unlink()
+            except OSError:
+                pass
 
     def _load_snapshot_from_disk(self, task_id: str) -> Chapter1TaskSnapshot | None:
         path = self._snapshot_path(task_id)
