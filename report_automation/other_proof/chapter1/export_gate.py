@@ -26,70 +26,60 @@ ABNORMAL_PUNCTUATION_PATTERNS = (
 
 
 def validate_chapter1_exportable(snapshot: Chapter1TaskSnapshot) -> tuple[bool, list[str]]:
-    """Validate the final Chapter 1 content that will actually be exported.
+    """Return advisory Chapter 1 issues without blocking Word export.
 
-    The generation pipeline keeps two representations:
-    1. semantic_draft: raw structured model output used for validation and replay.
-    2. legacy_sections: polished paragraphs that are written into the Word template.
-
-    Previous logic blocked export by scanning raw semantic blocks for colons and company
-    names. That caused false failures because legacy conversion intentionally removes
-    these issues before export. This gate must block only when the final exportable
-    paragraphs are missing or still contain hard failure markers.
+    The product requirement is to always generate the Word document once content exists,
+    even when Chapter 1 contains placeholders or failed sections. Callers may still log
+    the returned issues, but the boolean is intentionally always True.
     """
-    hard_issues: list[str] = []
-    advisory_issues: list[str] = []
+    issues: list[str] = []
 
     draft = snapshot.semantic_draft
     if draft is None:
-        hard_issues.append("第一章语义草稿为空")
+        issues.append("第一章语义草稿为空")
 
     sections = list(draft.sections or []) if draft is not None else []
     if draft is not None and not sections:
-        hard_issues.append("第一章语义草稿没有小节")
+        issues.append("第一章语义草稿没有小节")
 
     for section in sections:
         title = str(section.section_title or section.section_id or "第一章").strip() or "第一章"
         status = str(getattr(section.status, "value", section.status) or "").strip()
         score = int(section.validation_score or 0)
-        if status not in {"completed", "completed_with_warning"}:
-            advisory_issues.append(f"{title} 结构校验状态为 {status or '未知'}")
+        if status and status not in {"completed", "completed_with_warning"}:
+            issues.append(f"{title} 结构校验状态为 {status}")
         if score and score < 80:
-            advisory_issues.append(f"{title} 结构校验分低于 80")
+            issues.append(f"{title} 结构校验分低于 80")
         elif not score:
-            advisory_issues.append(f"{title} 缺少结构校验分")
+            issues.append(f"{title} 缺少结构校验分")
 
     legacy_sections = list(snapshot.legacy_sections or [])
     if not legacy_sections:
-        hard_issues.append("第一章没有可导出的正式段落")
+        issues.append("第一章没有可导出的正式段落")
 
     if legacy_sections_have_missing_markers(legacy_sections):
-        hard_issues.append("第一章正式段落存在待补充或生成失败标记")
+        issues.append("第一章正式段落存在待补充或生成失败标记")
 
     for legacy_section in legacy_sections:
         if not isinstance(legacy_section, dict):
-            hard_issues.append("第一章正式段落结构异常")
+            issues.append("第一章正式段落结构异常")
             continue
         title = str(legacy_section.get("title") or legacy_section.get("key") or "第一章").strip() or "第一章"
         paragraphs = [str(item or "").strip() for item in (legacy_section.get("paragraphs") or []) if str(item or "").strip()]
         if not paragraphs:
-            hard_issues.append(f"{title} 没有可导出的正式段落")
+            issues.append(f"{title} 没有可导出的正式段落")
             continue
         for paragraph in paragraphs:
             if _has_blocking_text(paragraph):
-                hard_issues.append(f"{title} 存在待补充或生成失败标记")
+                issues.append(f"{title} 存在待补充或生成失败标记")
             if _has_abnormal_punctuation(paragraph):
-                hard_issues.append(f"{title} 存在异常标点组合")
+                issues.append(f"{title} 存在异常标点组合")
             if _has_colon(paragraph):
-                hard_issues.append(f"{title} 正式段落仍存在冒号")
+                issues.append(f"{title} 正式段落仍存在冒号")
             if _has_company_name(paragraph, snapshot.company_name):
-                hard_issues.append(f"{title} 正式段落仍出现企业名称")
+                issues.append(f"{title} 正式段落仍出现企业名称")
 
-    hard_issues = _unique(hard_issues)
-    advisory_issues = _unique(advisory_issues)
-    if hard_issues:
-        return False, hard_issues
-    return True, advisory_issues
+    return True, _unique(issues)
 
 
 def _has_blocking_text(text: str) -> bool:
