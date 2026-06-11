@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query
 
 from report_automation.other_proof.chapter1 import (
     Chapter1TaskCreateRequest,
@@ -25,12 +26,14 @@ TERMINAL_STATUSES = {
     Chapter1TaskStatus.CANCELLED,
 }
 
+_CHAPTER1_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="chapter1-task")
+
 
 @router.post("/tasks")
-def create_chapter1_task(payload: Chapter1TaskCreateRequest, background_tasks: BackgroundTasks):
+def create_chapter1_task(payload: Chapter1TaskCreateRequest):
     snapshot = chapter1_task_service.start_task(payload)
     if snapshot.status not in TERMINAL_STATUSES:
-        background_tasks.add_task(chapter1_task_service.run_task, snapshot.task_id)
+        _CHAPTER1_EXECUTOR.submit(_run_chapter1_task_safely, snapshot.task_id)
     return _task_status_payload(snapshot)
 
 
@@ -83,6 +86,13 @@ def repair_chapter1_section(task_id: str, section_key: str):
     except Chapter1TaskError as exc:
         logger.warning("chapter1_task_repair_failed", exc_info=True)
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+def _run_chapter1_task_safely(task_id: str) -> None:
+    try:
+        chapter1_task_service.run_task(task_id)
+    except Exception:  # pragma: no cover - run_task already marks failures defensively
+        logger.exception("chapter1_background_task_crashed", extra={"task_id": task_id})
 
 
 def _task_status_payload(snapshot: Chapter1TaskSnapshot) -> dict:
