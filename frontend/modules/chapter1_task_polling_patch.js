@@ -25,6 +25,12 @@
     return `HTTP ${status}`;
   }
 
+  function replayTarget(snapshot) {
+    const url = String(snapshot && snapshot.replay_download_url || "").trim();
+    if (url) return url;
+    return String(snapshot && snapshot.replay_file_path || "").trim();
+  }
+
   async function readJson(resp) {
     try {
       return await resp.json();
@@ -123,5 +129,116 @@
 
       await wait(1200);
     }
+  };
+
+  applyOtherChapter1TaskResult = function applyOtherChapter1TaskResult(snapshot, companyName, product) {
+    if (!snapshot || typeof snapshot !== "object") {
+      updateChapter1State("第一章：任务结果为空");
+      setStatus("第一章任务结果为空", "error");
+      return false;
+    }
+
+    const legacySections = Array.isArray(snapshot.legacy_sections) ? snapshot.legacy_sections : [];
+    const semanticDraft = snapshot.semantic_draft || null;
+    const replayFilePath = typeof snapshot.replay_file_path === "string" ? snapshot.replay_file_path : "";
+    const replayDisplay = replayTarget(snapshot);
+    const taskId = typeof snapshot.task_id === "string" ? snapshot.task_id : "";
+    const warnings = Array.isArray(snapshot.warnings) ? snapshot.warnings : [];
+    if (!legacySections.length) {
+      otherProofChapter1TaskId = taskId;
+      otherProofChapter1TaskSnapshot = snapshot;
+      otherProofChapter1Sections = [];
+      otherProofChapter1SemanticDraft = semanticDraft;
+      otherProofChapter1ReplayFilePath = replayDisplay || replayFilePath;
+      updateChapter1State("第一章：生成失败");
+      setStatus("第一章生成失败，未返回可导出的章节内容", "error");
+      return false;
+    }
+
+    otherProofChapter1TaskId = taskId;
+    otherProofChapter1TaskSnapshot = snapshot;
+    otherProofChapter1Sections = legacySections;
+    otherProofChapter1SemanticDraft = semanticDraft;
+    otherProofChapter1ReplayFilePath = replayDisplay || replayFilePath;
+
+    const hasPlaceholderSection = chapter1SectionsContainPlaceholder(legacySections);
+    const hasRealContent = chapter1SectionsHaveRealContent(legacySections);
+    const canExport = snapshot.can_export !== false;
+
+    if (!canExport) {
+      clearOtherChapter1Cache(companyName);
+      saveDraft(true);
+      updateChapter1State("第一章：校验未通过，已阻断导出");
+      setStatus(
+        replayDisplay
+          ? `第一章校验未通过，已阻断导出；调试回放文件：${replayDisplay}`
+          : "第一章校验未通过，已阻断导出",
+        "error"
+      );
+      return false;
+    }
+
+    if (snapshot.status === "completed") {
+      if (hasRealContent) {
+        setOtherChapter1Cache(companyName, legacySections, product);
+      } else {
+        clearOtherChapter1Cache(companyName);
+      }
+      saveDraft(true);
+      updateChapter1State(
+        warnings.length
+          ? `第一章：已生成并缓存 ${legacySections.length} 个小节，部分内容已自动整理`
+          : `第一章：已生成并缓存 ${legacySections.length} 个小节`
+      );
+      setStatus(replayDisplay ? `第一章已生成；调试回放文件：${replayDisplay}` : "第一章已生成");
+      return true;
+    }
+
+    if (snapshot.status === "completed_with_missing") {
+      if (hasRealContent) {
+        setOtherChapter1Cache(companyName, legacySections, product);
+      } else {
+        clearOtherChapter1Cache(companyName);
+      }
+      saveDraft(true);
+      updateChapter1State(`第一章：部分生成 ${legacySections.length} 个小节，仍有内容待补全`);
+      setStatus(
+        replayDisplay
+          ? `第一章部分生成，可继续导出 Word；调试回放文件：${replayDisplay}`
+          : "第一章部分生成，可继续导出 Word",
+        "error"
+      );
+      return true;
+    }
+
+    if (snapshot.status === "cancelled") {
+      saveDraft(true);
+      updateChapter1State("第一章：任务已取消");
+      setStatus("第一章任务已取消", "error");
+      return hasRealContent;
+    }
+
+    if (hasRealContent) {
+      clearOtherChapter1Cache(companyName);
+      saveDraft(true);
+      updateChapter1State(`第一章：已有 ${legacySections.length} 个小节，已继续导出 Word`);
+      setStatus(
+        replayDisplay
+          ? `第一章生成失败，已继续导出 Word；调试回放文件：${replayDisplay}`
+          : "第一章生成失败，已继续导出 Word",
+        "error"
+      );
+    } else {
+      clearOtherChapter1Cache(companyName);
+      saveDraft(true);
+      updateChapter1State("第一章：生成失败");
+      setStatus(
+        replayDisplay
+          ? `第一章生成失败；调试回放文件：${replayDisplay}`
+          : "第一章生成失败",
+        "error"
+      );
+    }
+    return false;
   };
 })();
