@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import FileResponse
 
 from report_automation.other_proof.chapter1 import (
     Chapter1TaskCreateRequest,
@@ -14,6 +16,7 @@ from report_automation.other_proof.chapter1 import (
     chapter1_task_service,
     chapter1_task_store,
 )
+from report_automation.other_proof.chapter1.config import CHAPTER1_TASK_REPLAY_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +54,29 @@ def get_chapter1_task(task_id: str, full: bool = Query(default=False)):
         raise HTTPException(status_code=503, detail="第一章任务状态暂时不可用，请稍后重试") from exc
 
     if full or snapshot.status in TERMINAL_STATUSES:
-        return snapshot
+        return _full_task_payload(snapshot)
     return _task_status_payload(snapshot)
+
+
+@router.get("/tasks/{task_id}/replay")
+def download_chapter1_replay(task_id: str):
+    try:
+        snapshot = chapter1_task_store.get(task_id)
+    except Chapter1TaskNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Chapter1TaskError as exc:
+        logger.warning("chapter1_task_replay_snapshot_unavailable", exc_info=True)
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    replay_path = _resolve_replay_path(snapshot)
+    if replay_path is None or not replay_path.is_file():
+        raise HTTPException(status_code=404, detail="第一章调试回放文件不存在或已被清理")
+
+    return FileResponse(
+        replay_path,
+        media_type="application/json",
+        filename=replay_path.name,
+    )
 
 
 @router.post("/tasks/{task_id}/cancel")
@@ -95,6 +119,39 @@ def _run_chapter1_task_safely(task_id: str) -> None:
         logger.exception("chapter1_background_task_crashed", extra={"task_id": task_id})
 
 
+def _resolve_replay_path(snapshot: Chapter1TaskSnapshot) -> Path | None:
+    replay_root = CHAPTER1_TASK_REPLAY_DIR.resolve()
+    candidates: list[Path] = []
+    if snapshot.replay_file_path:
+        candidates.append(Path(snapshot.replay_file_path))
+    if snapshot.semantic_draft and snapshot.semantic_draft.replay_file_path:
+        candidates.append(Path(snapshot.semantic_draft.replay_file_path))
+    candidates.extend(sorted(replay_root.glob(f"*-{snapshot.task_id}.json"), reverse=True))
+
+    for candidate in candidates:
+        try:
+            path = candidate.resolve()
+            if not path.is_relative_to(replay_root):
+                continue
+            return path
+        except OSError:
+            continue
+    return None
+
+
+def _replay_download_url(snapshot: Chapter1TaskSnapshot) -> str:
+    replay_path = _resolve_replay_path(snapshot)
+    if replay_path is None or not replay_path.is_file():
+        return ""
+    return f"/other-proof/chapter1/tasks/{snapshot.task_id}/replay"
+
+
+def _full_task_payload(snapshot: Chapter1TaskSnapshot) -> dict:
+    payload = snapshot.model_dump(mode="json")
+    payload["replay_download_url"] = _replay_download_url(snapshot)
+    return payload
+
+
 def _task_status_payload(snapshot: Chapter1TaskSnapshot) -> dict:
     return {
         "task_id": snapshot.task_id,
@@ -114,6 +171,7 @@ def _task_status_payload(snapshot: Chapter1TaskSnapshot) -> dict:
         "errors": list(snapshot.errors or [])[-10:],
         "can_export": snapshot.can_export,
         "replay_file_path": snapshot.replay_file_path,
+        "replay_download_url": _replay_download_url(snapshot),
         "cancelled": snapshot.cancelled,
         "created_at": snapshot.created_at,
         "updated_at": snapshot.updated_at,
