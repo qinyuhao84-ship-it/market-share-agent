@@ -3,14 +3,17 @@ from __future__ import annotations
 from typing import Iterable
 
 from .legacy_adapter import legacy_sections_have_missing_markers
-from .models import Chapter1SectionStatus, Chapter1TaskSnapshot
+from .models import Chapter1TaskSnapshot
 
-BLOCKING_PATTERNS = (
+BLOCKING_TEXT_PATTERNS = (
     "【待补充：",
     "该部分生成失败",
     "请人工补充",
     "暂无资料",
     "待补充",
+)
+
+ABNORMAL_PUNCTUATION_PATTERNS = (
     "、：",
     "、:",
     "，：",
@@ -23,53 +26,80 @@ BLOCKING_PATTERNS = (
 
 
 def validate_chapter1_exportable(snapshot: Chapter1TaskSnapshot) -> tuple[bool, list[str]]:
-    issues: list[str] = []
+    """Validate the final Chapter 1 content that will actually be exported.
+
+    The generation pipeline keeps two representations:
+    1. semantic_draft: raw structured model output used for validation and replay.
+    2. legacy_sections: polished paragraphs that are written into the Word template.
+
+    Previous logic blocked export by scanning raw semantic blocks for colons and company
+    names. That caused false failures because legacy conversion intentionally removes
+    these issues before export. This gate must block only when the final exportable
+    paragraphs are missing or still contain hard failure markers.
+    """
+    hard_issues: list[str] = []
+    advisory_issues: list[str] = []
+
     draft = snapshot.semantic_draft
     if draft is None:
-        issues.append("第一章语义草稿为空")
-        return False, issues
+        hard_issues.append("第一章语义草稿为空")
 
-    sections = list(draft.sections or [])
-    if not sections:
-        issues.append("第一章语义草稿没有小节")
+    sections = list(draft.sections or []) if draft is not None else []
+    if draft is not None and not sections:
+        hard_issues.append("第一章语义草稿没有小节")
 
     for section in sections:
-        if section.status not in {Chapter1SectionStatus.COMPLETED, Chapter1SectionStatus.COMPLETED_WITH_WARNING}:
-            issues.append(f"{section.section_title} 未完成")
-        if int(section.validation_score or 0) < 80:
-            issues.append(f"{section.section_title} 校验分低于 80")
-        for block in section.content_blocks or []:
-            body = str(block.body or "").strip()
-            heading = str(block.heading or "").strip()
-            if _has_blocking_text(body) or _has_blocking_text(heading):
-                issues.append(f"{section.section_title} 存在阻断导出的异常文本")
-            if _has_colon(body) or _has_colon(heading):
-                issues.append(f"{section.section_title} 存在冒号")
-            if _has_company_name(body, snapshot.company_name) or _has_company_name(heading, snapshot.company_name):
-                issues.append(f"{section.section_title} 出现企业名称")
+        title = str(section.section_title or section.section_id or "第一章").strip() or "第一章"
+        status = str(getattr(section.status, "value", section.status) or "").strip()
+        score = int(section.validation_score or 0)
+        if status not in {"completed", "completed_with_warning"}:
+            advisory_issues.append(f"{title} 结构校验状态为 {status or '未知'}")
+        if score and score < 80:
+            advisory_issues.append(f"{title} 结构校验分低于 80")
+        elif not score:
+            advisory_issues.append(f"{title} 缺少结构校验分")
 
-    if legacy_sections_have_missing_markers(snapshot.legacy_sections or []):
-        issues.append("第一章 legacy 段落存在阻断导出的异常文本")
+    legacy_sections = list(snapshot.legacy_sections or [])
+    if not legacy_sections:
+        hard_issues.append("第一章没有可导出的正式段落")
 
-    for legacy_section in snapshot.legacy_sections or []:
+    if legacy_sections_have_missing_markers(legacy_sections):
+        hard_issues.append("第一章正式段落存在待补充或生成失败标记")
+
+    for legacy_section in legacy_sections:
         if not isinstance(legacy_section, dict):
+            hard_issues.append("第一章正式段落结构异常")
             continue
-        for paragraph in legacy_section.get("paragraphs") or []:
-            text = str(paragraph or "").strip()
-            if _has_blocking_text(text):
-                issues.append(f"{legacy_section.get('title') or legacy_section.get('key') or '第一章'} 存在阻断导出的异常文本")
-            if _has_colon(text):
-                issues.append(f"{legacy_section.get('title') or legacy_section.get('key') or '第一章'} 存在冒号")
-            if _has_company_name(text, snapshot.company_name):
-                issues.append(f"{legacy_section.get('title') or legacy_section.get('key') or '第一章'} 出现企业名称")
+        title = str(legacy_section.get("title") or legacy_section.get("key") or "第一章").strip() or "第一章"
+        paragraphs = [str(item or "").strip() for item in (legacy_section.get("paragraphs") or []) if str(item or "").strip()]
+        if not paragraphs:
+            hard_issues.append(f"{title} 没有可导出的正式段落")
+            continue
+        for paragraph in paragraphs:
+            if _has_blocking_text(paragraph):
+                hard_issues.append(f"{title} 存在待补充或生成失败标记")
+            if _has_abnormal_punctuation(paragraph):
+                hard_issues.append(f"{title} 存在异常标点组合")
+            if _has_colon(paragraph):
+                hard_issues.append(f"{title} 正式段落仍存在冒号")
+            if _has_company_name(paragraph, snapshot.company_name):
+                hard_issues.append(f"{title} 正式段落仍出现企业名称")
 
-    issues = _unique(issues)
-    return len(issues) == 0, issues
+    hard_issues = _unique(hard_issues)
+    advisory_issues = _unique(advisory_issues)
+    if hard_issues:
+        return False, hard_issues
+    return True, advisory_issues
 
 
 def _has_blocking_text(text: str) -> bool:
     normalized = str(text or "").strip()
-    return any(pattern in normalized for pattern in BLOCKING_PATTERNS)
+    return any(pattern in normalized for pattern in BLOCKING_TEXT_PATTERNS)
+
+
+def _has_abnormal_punctuation(text: str) -> bool:
+    value = str(text or "")
+    return any(pattern in value for pattern in ABNORMAL_PUNCTUATION_PATTERNS)
 
 
 def _has_colon(text: str) -> bool:
